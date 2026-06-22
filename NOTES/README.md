@@ -17,3 +17,7 @@ Design and rebuild notes for the company-side tool live in this folder.
 ## Enrichment
 
 - `08-company-enrichment-redesign.md`
+
+## Contacts
+
+- `10-contact-discovery-and-apollo-enrichment.md`
