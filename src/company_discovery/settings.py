@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     enrichment_max_pages: int = Field(default=4, ge=1, le=10)
     enrichment_fallback_results: int = Field(default=5, ge=1, le=20)
 
+    contact_results_per_query: int = Field(default=10, ge=1, le=50)
+
     @property
     def resolved_llm_response_format(self) -> Literal["json_schema", "json_object"]:
         if self.llm_response_format != "auto":
@@ -53,6 +55,18 @@ class Settings(BaseSettings):
             return self.database_url
         database_path = self.company_discovery_home / "company_memory.db"
         return f"sqlite:///{database_path.resolve()}"
+
+    @property
+    def sqlite_database_path(self) -> Path | None:
+        """Return the configured on-disk SQLite path, if there is one."""
+        prefix = "sqlite:///"
+        url = self.resolved_database_url
+        if not url.startswith(prefix):
+            return None
+        raw_path = url.removeprefix(prefix).partition("?")[0]
+        if not raw_path or raw_path == ":memory:":
+            return None
+        return Path(raw_path)
 
     @property
     def artifacts_dir(self) -> Path:

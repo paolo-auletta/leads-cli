@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "company_source": {
+    "enrichment_run_id": "enrichment-run-2",
+    "bucket": "ready",
+    "domains": []
+  },
+  "roles": [
+    {
+      "key": "project_manager",
+      "labels": ["project manager", "senior project manager"],
+      "max_per_company": 1
+    },
+    {
+      "key": "operations_manager",
+      "labels": ["operations manager", "operations director"],
+      "max_per_company": 1
+    },
+    {
+      "key": "estimator",
+      "labels": ["estimator", "chief estimator", "senior estimator"],
+      "max_per_company": 1
+    }
+  ],
+  "company_limit": null,
+  "contact_limit": null,
+  "current_only": true,
+  "require_role_match": true,
+  "memory_freshness_days": 30
+}

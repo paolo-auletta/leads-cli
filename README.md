@@ -1,6 +1,6 @@
-# Company Discovery
+# Leads Discovery
 
-An agent-first, memory-first company targeting and enrichment engine. A strict JSON spec drives
+An agent-first, memory-first company and contact research engine. Strict JSON specs drive
 deterministic memory retrieval, focused Exa searches, structured LLM evaluation, targeted
 official-site enrichment, persistence, and reviewable CSV/Markdown/JSON artifacts.
 
@@ -27,6 +27,7 @@ for a different mode.
 ## Commands
 
 ```bash
+.venv/bin/leads init-db
 leads companies discover --spec company_search_spec.json
 leads companies enrich DISCOVERY_RUN_ID
 leads companies show-run RUN_ID
@@ -36,7 +37,16 @@ leads companies rerun RUN_ID
 leads companies show-enrichment ENRICHMENT_RUN_ID
 leads companies inspect-enrichment ENRICHMENT_RUN_ID --domain example.com
 leads companies export-enrichment ENRICHMENT_RUN_ID
+leads contacts validate-spec --spec contact_search_spec.json
+leads contacts discover --spec contact_search_spec.json
+leads contacts show-run CONTACT_DISCOVERY_RUN_ID
+leads contacts inspect CONTACT_DISCOVERY_RUN_ID --person "Jane Smith"
+leads contacts export CONTACT_DISCOVERY_RUN_ID
 ```
+
+`leads init-db` creates `company_memory.db` and its schema. If the database already exists, it
+asks before resetting it. An accepted reset moves the existing `runs/` directory to a timestamped
+archive such as `runs-previousdb-20260622T184500Z/`, then creates a new empty `runs/` directory.
 
 Use `--verbose` on `discover` to print generated queries and candidate-level decisions.
 
@@ -107,3 +117,33 @@ To exclude family businesses during enrichment, add this to the discovery spec:
 Enrichment still records the company as independent, but sends it to `blocked.csv` with a
 `fit_conflict` and `excluded_family_owned` flag. The ownership signal is retained in enrichment
 memory, so the same rule applies when a later run reuses fresh facts.
+
+## Contact Discovery
+
+Contact discovery is a separate phase after company enrichment. It starts from a completed
+`enrichment-run-N`, uses only its ready companies by default, and finds current people matching
+structured role targets.
+
+```bash
+cp examples/contact_search_spec.json contact_search_spec.json
+leads contacts validate-spec --spec contact_search_spec.json
+leads contacts discover --spec contact_search_spec.json
+```
+
+For every company and role, the command reuses accepted contact memory from the last 30 days, then
+uses one Exa people-index query plus one official-domain evidence query for each remaining
+per-company gap. The LLM evaluates identity, current employment at the exact target company, and
+requested-title fit. A model cannot force an acceptance when those explicit checks are not
+satisfied.
+
+Artifacts are split into `accepted.csv`, `review.csv`, and `rejected.csv`. All three use the same
+client-facing columns:
+
+```text
+company_name, company_domain, contact_name, title, linkedin_url,
+email, phone, status, notes
+```
+
+`email` and `phone` are intentionally blank during discovery. Full queries, raw Exa results,
+evidence, role keys, verdict details, and memory/live source decisions are retained in `run.json`.
+Contact enrichment is not implemented yet.

@@ -30,18 +30,35 @@ class ExaClient:
         return self._last_cost_dollars
 
     def search(self, query: str, *, country: str, num_results: int) -> list[ExaSearchResult]:
+        return self._search(query, country=country, num_results=num_results, category="company")
+
+    def search_people(
+        self, query: str, *, country: str, num_results: int
+    ) -> list[ExaSearchResult]:
+        return self._search(query, country=country, num_results=num_results, category="people")
+
+    def search_contact_evidence(
+        self, query: str, *, country: str, num_results: int
+    ) -> list[ExaSearchResult]:
+        return self._search(query, country=country, num_results=num_results, category=None)
+
+    def _search(
+        self, query: str, *, country: str, num_results: int, category: str | None
+    ) -> list[ExaSearchResult]:
         payload = {
             "query": query,
             "numResults": max(1, min(num_results, 100)),
             "type": "auto",
-            "category": "company",
             "userLocation": country.upper(),
             "contents": {"text": {"maxCharacters": 3000}},
-            "systemPrompt": (
+        }
+        if category is not None:
+            payload["category"] = category
+        if category == "company":
+            payload["systemPrompt"] = (
                 "Return official operating-company websites. Avoid directories, associations, "
                 "marketplaces, news pages, and duplicate companies."
-            ),
-        }
+            )
         response = self._post_with_retry(payload)
         data = response.json()
         self._last_cost_dollars = self._read_cost(data)

@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "company-discovery"
 version = "0.1.0"
-description = "Agent-first, memory-first company discovery for outbound lead generation."
+description = "Agent-first company and contact discovery for outbound lead generation."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "Proprietary" }

@@ -58,6 +58,23 @@ def test_exa_adapter_builds_company_search_and_preserves_raw_payload() -> None:
     assert adapter.last_cost_dollars == 0.01
 
 
+def test_exa_adapter_separates_people_search_from_general_contact_evidence() -> None:
+    payloads = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payloads.append(json.loads(request.content))
+        return httpx.Response(200, json={"results": []})
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://exa.test")
+    adapter = ExaClient(Settings(exa_api_key="test"), client=client)
+
+    adapter.search_people("project manager at Acme", country="US", num_results=10)
+    adapter.search_contact_evidence("site:acme.com project manager", country="US", num_results=10)
+
+    assert payloads[0]["category"] == "people"
+    assert "category" not in payloads[1]
+
+
 def test_llm_adapter_retries_invalid_structured_output() -> None:
     calls = 0
     payloads = []

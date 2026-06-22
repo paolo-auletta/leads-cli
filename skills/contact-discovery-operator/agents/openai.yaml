@@ -1,0 +1,4 @@
+interface:
+  display_name: "Contact Discovery Operator"
+  short_description: "Run and explain live contact discovery"
+  default_prompt: "Use $contact-discovery-operator to run this contact discovery spec and summarize the results."

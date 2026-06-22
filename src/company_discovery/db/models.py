@@ -168,3 +168,97 @@ class EnrichmentFactRow(Base):
     fact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
     fact_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ContactDiscoveryRunRow(Base):
+    __tablename__ = "contact_discovery_runs"
+
+    id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    enrichment_run_id: Mapped[str] = mapped_column(
+        ForeignKey("company_enrichment_runs.id"), nullable=False, index=True
+    )
+    spec_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    source_spec_path: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
+    summary_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    artifact_paths: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    queries: Mapped[list[ContactDiscoveryQueryRow]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="ContactDiscoveryQueryRow.id",
+    )
+    evaluations: Mapped[list[ContactEvaluationRow]] = relationship(
+        back_populates="run", cascade="all, delete-orphan"
+    )
+
+
+class ContactDiscoveryQueryRow(Base):
+    __tablename__ = "contact_discovery_queries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("contact_discovery_runs.id", ondelete="CASCADE"), index=True
+    )
+    company_domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    role_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    query_text: Mapped[str] = mapped_column(Text, nullable=False)
+    result_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_dollars: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    raw_results: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    run: Mapped[ContactDiscoveryRunRow] = relationship(back_populates="queries")
+
+
+class ContactCandidateRow(Base):
+    __tablename__ = "contact_candidates"
+    __table_args__ = (
+        UniqueConstraint("company_domain", "identity_key"),
+        Index("ix_contact_candidates_company", "company_domain", "normalized_name"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    company_candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("company_candidates.id"), nullable=False, index=True
+    )
+    company_name: Mapped[str] = mapped_column(Text, nullable=False)
+    company_domain: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    full_name: Mapped[str] = mapped_column(Text, nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    identity_key: Mapped[str] = mapped_column(String(512), nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    linkedin_url: Mapped[str | None] = mapped_column(Text)
+    source_urls: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    evidence: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    evaluations: Mapped[list[ContactEvaluationRow]] = relationship(back_populates="candidate")
+
+
+class ContactEvaluationRow(Base):
+    __tablename__ = "contact_evaluations"
+    __table_args__ = (UniqueConstraint("run_id", "candidate_id", "role_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("contact_discovery_runs.id", ondelete="CASCADE"), index=True
+    )
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("contact_candidates.id"), nullable=False, index=True
+    )
+    role_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    verdict: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    current_company_match: Mapped[str] = mapped_column(String(16), nullable=False)
+    role_match: Mapped[str] = mapped_column(String(16), nullable=False)
+    identity_clear: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    run: Mapped[ContactDiscoveryRunRow] = relationship(back_populates="evaluations")
+    candidate: Mapped[ContactCandidateRow] = relationship(back_populates="evaluations")

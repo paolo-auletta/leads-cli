@@ -54,6 +54,52 @@ the client explicitly says it can be stale by around 6 months.
 That means Apollo is not the discovery engine.
 It is the contact-channel enrichment engine.
 
+## Official Apollo API findings
+
+I checked Apollo's current official docs on 2026-06-22 to ground the implementation design in the
+real API surface.
+
+Most relevant endpoints:
+
+- `POST /api/v1/people/match`
+- `POST /api/v1/people/bulk_match`
+- `GET /api/v1/webhook_result/{request_id}`
+- `POST /api/v1/usage_stats/api_usage_stats`
+
+Important product facts from the docs:
+
+- `people/match` enriches 1 person.
+- `people/bulk_match` enriches up to 10 people per call.
+- Apollo matches better when you pass stronger identifiers such as `linkedin_url`, full name, and
+  company domain.
+- the normal people search endpoint is for prospecting, not for contact-channel enrichment, and it
+  does not return emails or phone numbers.
+- `reveal_phone_number=true` is asynchronous and requires `webhook_url`.
+- waterfall enrichment for email and/or phone is also asynchronous and returns a `request_id`.
+- Apollo exposes `GET /webhook_result/{request_id}` so we can poll results if webhook delivery is
+  missed.
+- Apollo's usage endpoint can report rate limits, but it requires a master API key.
+
+Implementation consequence for this project:
+
+- Apollo should stay in `contacts enrich`, never in `contacts discover`.
+- contact enrichment should use our already-discovered identity as the input to Apollo, not the
+  other way around.
+- the best Apollo payload for this project is usually:
+  - `linkedin_url`
+  - `first_name`
+  - `last_name`
+  - `domain`
+  - `organization_name`
+- batching should use `bulk_match` in chunks of 10.
+- phone enrichment cannot be treated as a simple sync field fetch; it needs webhook-aware run
+  handling.
+- for CLI ergonomics, the clean design is:
+  1. submit Apollo enrich requests
+  2. store `request_id`
+  3. poll Apollo results
+  4. merge final email / phone outputs into the run artifacts
+
 ## Why this split is correct
 
 If we let Apollo drive contact discovery, we recreate the same problem the client already has:
@@ -472,33 +518,29 @@ Examples:
 
 ## Recommended final output fields
 
-The final outreach-ready export should contain:
+The client-facing export should stay small and contain:
 
 - `company_name`
 - `company_domain`
-- `person_name`
-- `first_name`
-- `last_name`
-- `matched_role_key`
-- `observed_title`
+- `contact_name`
+- `title`
 - `linkedin_url`
-- `current_company_confirmed`
-- `discovery_status`
 - `email`
-- `email_status`
 - `phone`
-- `phone_status`
-- `apollo_company_name`
-- `apollo_title`
-- `apollo_match_status`
-- `review_flags`
-- `source_summary`
+- `status`
+- `notes`
 
-This keeps the separation visible:
+Discovery writes the same shape with blank email and phone fields. Later enrichment can fill those
+columns without changing the client-facing contract.
 
-- what we discovered from the live web
-- what Apollo added
-- where the uncertainty still is
+Detailed role keys, current-company checks, Apollo metadata, individual field statuses, review
+flags, source URLs, evidence, and reasoning belong in `run.json` or review artifacts rather than
+the final CSV.
+
+## Current implementation boundary
+
+Contact discovery is implemented first. Apollo contact enrichment remains intentionally deferred
+until the team validates that discovery finds the intended people reliably.
 
 ## Artifacts
 
