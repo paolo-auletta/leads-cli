@@ -23,6 +23,8 @@ class EnrichmentArtifactExporter:
         "ownership_type",
         "independence_status",
         "outcome",
+        "conflicts",
+        "review_flags",
     ]
 
     def __init__(self, artifacts_root: Path) -> None:
@@ -86,6 +88,8 @@ class EnrichmentArtifactExporter:
                         "ownership_type": discovery.get("ownership_type") or "",
                         "independence_status": independence.get("status", "unknown"),
                         "outcome": item["outcome"],
+                        "conflicts": " | ".join(item.get("conflicts", [])),
+                        "review_flags": " | ".join(item.get("review_flags", [])),
                     }
                 )
 

@@ -231,6 +231,7 @@ class IndependenceFact(DomainModel):
     status: IndependenceStatus
     evidence: list[str] = Field(default_factory=list)
     source_urls: list[str] = Field(default_factory=list)
+    signal_kinds: list[str] = Field(default_factory=list)
     observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 

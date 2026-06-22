@@ -17,7 +17,10 @@ Create one `company_search_spec.json` in the user's working directory.
 5. Choose `exploratory` for a new or specialized vertical. Add concrete `seed_terms` and useful `anti_terms` derived from the vertical meaning, without adding ICP constraints.
 6. Encode broad US geography as `{"country": "US", "states": []}`. Use two-letter uppercase state codes when states are requested.
 7. Use an empty `company_size` object when no employee range was given. Never invent employee limits.
-8. Use empty arrays for omitted include/exclude criteria. Default hygiene is handled by the tool; do not invent franchise or ownership exclusions.
+8. Use empty arrays for omitted include/exclude criteria. When the user explicitly excludes family
+   businesses, set `exclude.structured.ownership_signals` to `["family_owned"]`. This tells enrichment
+   to block a company when official-site or corroborating evidence identifies it as family-owned.
+   Never invent this exclusion.
 9. Default `novelty_mode` to `unused_memory`. This searches memory first but excludes every company
    that has ever been selected. Use `only_new` when the user wants external discovery only; it skips
    memory candidates and excludes known domains returned by search. Use `full_memory` only when the
@@ -42,7 +45,12 @@ Use this shape and omit no top-level fields except those with documented default
   "geography": {"country": "US", "states": ["TX"]},
   "company_size": {"employee_min": 20, "employee_max": 100},
   "include": {"keywords": [], "subtypes": []},
-  "exclude": {"keywords": [], "ownership_types": [], "company_patterns": []},
+  "exclude": {
+    "keywords": [],
+    "ownership_types": [],
+    "company_patterns": [],
+    "structured": {"ownership_signals": []}
+  },
   "novelty_mode": "unused_memory",
   "reserve_ratio": 0.5,
   "balance_mode": "soft"
@@ -68,5 +76,7 @@ For an exploratory vertical, use:
 }
 ```
 
-When a size bound is one-sided, include only the known bound. When exclusions are omitted, keep all
-three exclusion arrays empty. Preserve the user's ambiguity instead of silently tightening the ICP.
+Allowed structured ownership signals are `family_owned`, `franchise`, `parent`, `subsidiary`,
+`division`, and `acquired`. When a size bound is one-sided, include only the known bound. When
+exclusions are omitted, keep all exclusion arrays empty. Preserve the user's ambiguity instead of
+silently tightening the ICP.

@@ -117,10 +117,36 @@ class IncludeSpec(StrictModel):
         return list(dict.fromkeys(value.strip().lower() for value in values if value.strip()))
 
 
+class OwnershipSignalKind(StrEnum):
+    FAMILY_OWNED = "family_owned"
+    FRANCHISE = "franchise"
+    PARENT = "parent"
+    SUBSIDIARY = "subsidiary"
+    DIVISION = "division"
+    ACQUIRED = "acquired"
+
+
+class StructuredExcludeSpec(StrictModel):
+    ownership_signals: list[OwnershipSignalKind] = Field(default_factory=list)
+
+    @field_validator("ownership_signals", mode="before")
+    @classmethod
+    def normalize_ownership_signals(cls, values: object) -> object:
+        if not isinstance(values, list):
+            return values
+        return list(
+            dict.fromkeys(
+                value.strip().lower() if isinstance(value, str) else value
+                for value in values
+            )
+        )
+
+
 class ExcludeSpec(StrictModel):
     keywords: list[str] = Field(default_factory=list)
     ownership_types: list[str] = Field(default_factory=list)
     company_patterns: list[str] = Field(default_factory=list)
+    structured: StructuredExcludeSpec = Field(default_factory=StructuredExcludeSpec)
 
     @field_validator("keywords", "ownership_types", "company_patterns")
     @classmethod
@@ -212,6 +238,7 @@ class CompanySearchSpec(StrictModel):
                 self.exclude.keywords,
                 self.exclude.ownership_types,
                 self.exclude.company_patterns,
+                self.exclude.structured.ownership_signals,
             )
         ):
             missing.append("no custom exclusions applied")

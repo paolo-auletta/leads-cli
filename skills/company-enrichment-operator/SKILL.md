@@ -51,6 +51,9 @@ discovery option.
 
 - Never treat `private`, `privately held`, LLC, partnership, or corporation as proof of independence.
 - Explicit franchise, parent, subsidiary, division, or acquisition evidence blocks the company.
+- If the discovery spec lists `family_owned` under `exclude.structured.ownership_signals`, explicit
+  family-owned evidence blocks the company as a fit conflict. Without that requested exclusion,
+  family-owned remains valid positive evidence of independence.
 - Absence of franchise language is not proof; unresolved independence remains `unknown`.
 - Never merge address pieces from separate offices. The selected address must be one complete block
   and, for state-scoped discovery, must be in the inherited state.

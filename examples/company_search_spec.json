@@ -21,7 +21,8 @@
   "exclude": {
     "keywords": ["franchise", "franchisee"],
     "ownership_types": ["franchise", "subsidiary"],
-    "company_patterns": ["vendor", "association", "directory"]
+    "company_patterns": ["vendor", "association", "directory"],
+    "structured": {"ownership_signals": []}
   },
   "novelty_mode": "unused_memory",
   "reserve_ratio": 0.5,

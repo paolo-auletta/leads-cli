@@ -84,3 +84,15 @@ the enrichment `run.json` keeps field provenance, conflicts, and the per-company
 By default, complete profiles with unknown independence remain in review. Add
 `--allow-unknown-independence` only when that uncertainty is acceptable. Generic values such as
 `privately_held` never count as proof of independence.
+
+To exclude family businesses during enrichment, add this to the discovery spec:
+
+```json
+"exclude": {
+  "structured": {"ownership_signals": ["family_owned"]}
+}
+```
+
+Enrichment still records the company as independent, but sends it to `blocked.csv` with a
+`fit_conflict` and `excluded_family_owned` flag. The ownership signal is retained in enrichment
+memory, so the same rule applies when a later run reuses fresh facts.

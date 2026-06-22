@@ -16,6 +16,7 @@ from company_discovery.domain.models import (
     InheritedFieldStatus,
     WebsitePage,
 )
+from company_discovery.domain.spec import CompanySearchSpec
 from company_discovery.reports.enrichment_exporter import EnrichmentArtifactExporter
 from company_discovery.services.enrichment_progress import (
     EnrichmentProgressReporter,
@@ -143,6 +144,10 @@ class EnrichmentPipeline:
     ) -> EnrichmentItem:
         company = dict(record["company"])  # type: ignore[arg-type]
         evaluation = dict(record["evaluation"])  # type: ignore[arg-type]
+        spec = CompanySearchSpec.model_validate(record["spec"])
+        excluded_ownership_signals = {
+            signal.value for signal in spec.exclude.structured.ownership_signals
+        }
         discovery = {
             "run_id": discovery_run_id,
             "company_name": company["company_name"],
@@ -158,6 +163,7 @@ class EnrichmentPipeline:
             "reason": evaluation.get("reason"),
             "evidence": evaluation.get("evidence", []),
             "source": record["source"],
+            "excluded_ownership_signals": sorted(excluded_ownership_signals),
         }
         reporter.company(index, total, str(discovery["company_name"]))
         reporter.event("INHERITED", "name, domain, vertical, geography, employees, ownership type")
@@ -230,7 +236,23 @@ class EnrichmentPipeline:
                 )
                 conflicts.extend(new_conflicts)
 
-        outcome, review_flags = self._outcome(profile, conflicts, options.allow_unknown_independence)
+        matched_exclusions = self._matched_ownership_exclusions(
+            profile, excluded_ownership_signals
+        )
+        conflicts.extend(
+            f"excluded_ownership_signal: {signal}" for signal in matched_exclusions
+        )
+        trace.append({
+            "stage": "structured_exclusions",
+            "requested": sorted(excluded_ownership_signals),
+            "matched": matched_exclusions,
+        })
+        outcome, review_flags = self._outcome(
+            profile,
+            conflicts,
+            options.allow_unknown_independence,
+            matched_exclusions,
+        )
         label = "READY" if outcome == EnrichmentOutcome.READY else "REVIEW" if outcome in {
             EnrichmentOutcome.GAPS, EnrichmentOutcome.INDEPENDENCE_UNCONFIRMED
         } else "BLOCKED"
@@ -339,11 +361,16 @@ class EnrichmentPipeline:
         profile: EnrichmentProfile,
         conflicts: list[str],
         allow_unknown: bool,
+        matched_exclusions: list[str] | None = None,
     ) -> tuple[EnrichmentOutcome, list[str]]:
         if any(value.startswith("identity_conflict") for value in conflicts):
             return EnrichmentOutcome.IDENTITY_CONFLICT, ["identity_conflict"]
         if any(value.startswith("geography_conflict") for value in conflicts):
             return EnrichmentOutcome.GEOGRAPHY_CONFLICT, ["geography_conflict"]
+        if matched_exclusions:
+            return EnrichmentOutcome.FIT_CONFLICT, [
+                f"excluded_{signal}" for signal in matched_exclusions
+            ]
         if profile.independence and profile.independence.status == IndependenceStatus.NO:
             return EnrichmentOutcome.FIT_CONFLICT, ["not_independent"]
         gaps = []
@@ -358,6 +385,21 @@ class EnrichmentPipeline:
                 return EnrichmentOutcome.READY, ["independence_unknown_allowed"]
             return EnrichmentOutcome.INDEPENDENCE_UNCONFIRMED, ["independence_unknown"]
         return EnrichmentOutcome.READY, []
+
+    @staticmethod
+    def _matched_ownership_exclusions(
+        profile: EnrichmentProfile,
+        excluded_signals: set[str],
+    ) -> list[str]:
+        if not excluded_signals or profile.independence is None:
+            return []
+        observed = set(profile.independence.signal_kinds)
+        # Older cached facts predate signal_kinds. Preserve family-owned evidence across upgrades.
+        if "family_owned" not in observed:
+            evidence = " ".join(profile.independence.evidence).lower()
+            if "family-owned" in evidence or "family owned" in evidence:
+                observed.add("family_owned")
+        return sorted(observed & excluded_signals)
 
     @staticmethod
     def _count_outcome(summary: EnrichmentSummary, outcome: EnrichmentOutcome) -> None:

@@ -112,5 +112,6 @@ def resolve_independence(extraction: EnrichmentExtraction) -> IndependenceFact:
         status=status,
         evidence=[signal.statement for signal in extraction.ownership_signals],
         source_urls=list(dict.fromkeys(signal.source_url for signal in extraction.ownership_signals)),
+        signal_kinds=list(dict.fromkeys(signal.kind for signal in extraction.ownership_signals)),
         observed_at=datetime.now(UTC),
     )

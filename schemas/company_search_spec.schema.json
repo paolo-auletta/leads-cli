@@ -72,7 +72,29 @@
       "properties": {
         "keywords": {"type": "array", "items": {"type": "string"}, "default": []},
         "ownership_types": {"type": "array", "items": {"type": "string"}, "default": []},
-        "company_patterns": {"type": "array", "items": {"type": "string"}, "default": []}
+        "company_patterns": {"type": "array", "items": {"type": "string"}, "default": []},
+        "structured": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ownership_signals": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "family_owned",
+                  "franchise",
+                  "parent",
+                  "subsidiary",
+                  "division",
+                  "acquired"
+                ]
+              },
+              "default": []
+            }
+          },
+          "default": {}
+        }
       },
       "default": {}
     },

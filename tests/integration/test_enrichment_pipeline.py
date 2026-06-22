@@ -89,7 +89,11 @@ class UnknownIndependenceExtractor(FakeExtractor):
         return result.model_copy(update={"ownership_signals": []})
 
 
-def _completed_discovery(repository: DiscoveryRepository) -> str:
+def _completed_discovery(
+    repository: DiscoveryRepository,
+    *,
+    excluded_ownership_signals: list[str] | None = None,
+) -> str:
     spec = CompanySearchSpec.model_validate(
         {
             "version": 1,
@@ -97,6 +101,11 @@ def _completed_discovery(repository: DiscoveryRepository) -> str:
             "vertical": {"mode": "known", "key": "construction", "label": "Construction"},
             "geography": {"country": "US", "states": ["TX"]},
             "company_size": {"employee_min": 10, "employee_max": 50},
+            "exclude": {
+                "structured": {
+                    "ownership_signals": excluded_ownership_signals or [],
+                }
+            },
         }
     )
     run_id = repository.create_run(spec)
@@ -204,4 +213,41 @@ def test_fresh_unknown_independence_is_reused_without_repeated_fetch(
     assert first.items[0].outcome == "independence_unconfirmed"
     assert second.summary.memory_profiles_reused == 1
     assert second.summary.websites_fetched == 0
+    assert website.calls == 1
+
+
+def test_enrichment_blocks_family_owned_when_requested_and_reuses_signal_memory(
+    repository: DiscoveryRepository,
+    tmp_path: Path,
+) -> None:
+    discovery_run_id = _completed_discovery(
+        repository,
+        excluded_ownership_signals=["family_owned"],
+    )
+    website = FakeWebsite()
+    pipeline = EnrichmentPipeline(
+        repository=EnrichmentRepository(repository.database),
+        exporter=EnrichmentArtifactExporter(tmp_path / "runs"),
+        website=website,
+        extractor=FakeExtractor(),
+    )
+
+    first = pipeline.enrich(discovery_run_id)
+    second = pipeline.enrich(discovery_run_id)
+
+    assert first.summary.blocked == 1
+    assert first.items[0].outcome == "fit_conflict"
+    assert first.items[0].review_flags == ["excluded_family_owned"]
+    assert "excluded_ownership_signal: family_owned" in first.items[0].conflicts
+    assert first.items[0].trace[-2] == {
+        "stage": "structured_exclusions",
+        "requested": ["family_owned"],
+        "matched": ["family_owned"],
+    }
+    with Path(first.artifact_paths["blocked"]).open() as handle:
+        blocked_rows = list(csv.DictReader(handle))
+    assert blocked_rows[0]["conflicts"] == "excluded_ownership_signal: family_owned"
+    assert blocked_rows[0]["review_flags"] == "excluded_family_owned"
+    assert second.summary.blocked == 1
+    assert second.summary.memory_profiles_reused == 1
     assert website.calls == 1

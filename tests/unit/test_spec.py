@@ -5,7 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from company_discovery.domain.spec import CompanySearchSpec, NoveltyMode
+from company_discovery.domain.spec import CompanySearchSpec, NoveltyMode, OwnershipSignalKind
 
 
 def test_national_vertical_without_size_or_exclusions_is_explicit(tmp_path) -> None:
@@ -101,6 +101,22 @@ def test_terms_and_states_are_normalized() -> None:
     assert spec.vertical.key == "marine-surveying"
     assert spec.vertical.seed_terms == ["vessel inspection"]
     assert spec.geography.states == ["TX"]
+
+
+def test_structured_ownership_exclusions_are_normalized() -> None:
+    spec = CompanySearchSpec.model_validate(
+        {
+            "version": 1,
+            "count": 5,
+            "vertical": {"mode": "known", "key": "construction", "label": "Construction"},
+            "exclude": {
+                "structured": {"ownership_signals": [" FAMILY_OWNED ", "family_owned"]}
+            },
+        }
+    )
+
+    assert spec.exclude.structured.ownership_signals == [OwnershipSignalKind.FAMILY_OWNED]
+    assert "no custom exclusions applied" not in spec.missing_constraints
 
 
 def test_multi_vertical_spec_has_equal_quotas_and_soft_balance_by_default() -> None:
