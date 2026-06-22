@@ -6,8 +6,33 @@ import httpx
 
 from company_discovery.adapters.exa import ExaClient
 from company_discovery.adapters.llm import OpenAICompatibleLLM
+from company_discovery.adapters.website import WebsiteClient
 from company_discovery.domain.models import QueryPlan
 from company_discovery.settings import Settings
+
+
+def test_website_adapter_preserves_only_linkedin_company_profiles() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/html"},
+            text="""
+                <html><body><footer>
+                  <a href="https://linkedin.com/company/acme-builders/?trk=footer">LinkedIn</a>
+                  <a href="https://linkedin.com/in/acme-founder">Founder</a>
+                  <a href="https://linkedin.com/jobs/view/123">Jobs</a>
+                </footer></body></html>
+            """,
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    website = WebsiteClient(client=client, max_pages=1)
+
+    pages = website.fetch("acme.com")
+
+    assert pages[0].linkedin_urls == [
+        "https://www.linkedin.com/company/acme-builders"
+    ]
 
 
 def test_exa_adapter_builds_company_search_and_preserves_raw_payload() -> None:

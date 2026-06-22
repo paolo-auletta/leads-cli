@@ -14,6 +14,7 @@ from company_discovery.domain.models import (
     EnrichmentSummary,
     IndependenceStatus,
     InheritedFieldStatus,
+    LinkedInObservation,
     WebsitePage,
 )
 from company_discovery.domain.spec import CompanySearchSpec
@@ -23,7 +24,9 @@ from company_discovery.services.enrichment_progress import (
     NullEnrichmentProgressReporter,
 )
 from company_discovery.services.enrichment_resolver import (
+    normalize_linkedin_company_url,
     resolve_independence,
+    resolve_linkedin,
     resolve_location,
     resolve_phone,
 )
@@ -177,10 +180,13 @@ class EnrichmentPipeline:
         candidate_id = int(record["candidate_id"])  # type: ignore[arg-type]
         profile = self._repository.fresh_profile(candidate_id, self._freshness_days)
         profile = self._apply_refresh(profile, options.refresh)
-        reused = sum(value is not None for value in (profile.phone, profile.location, profile.independence))
+        reused = sum(
+            value is not None
+            for value in (profile.phone, profile.location, profile.independence, profile.linkedin)
+        )
         if reused:
             summary.memory_profiles_reused += 1
-            reporter.event("MEMORY", f"reused {reused}/3 fresh enrichment facts")
+            reporter.event("MEMORY", f"reused {reused}/4 fresh enrichment facts")
             trace.append({"stage": "memory", "reused": reused})
         else:
             reporter.event("MEMORY", "no reusable enrichment profile")
@@ -210,31 +216,36 @@ class EnrichmentPipeline:
 
         missing = self._missing(profile, include_unknown_independence=True)
         if missing and self._fallback_search is not None and self._extractor is not None:
-            query = self._fallback_query(discovery, missing)
-            results = self._fallback_search.search(
-                query,
-                country=str(discovery.get("country") or "US"),
-                num_results=self._fallback_results,
-            )
-            summary.fallback_searches += 1
-            reporter.event("FALLBACK", f"narrow corroboration for {', '.join(missing)}")
-            pages = [
-                WebsitePage(
-                    url=result.url,
-                    title=result.title,
-                    text=result.text or "",
-                    page_type="search_evidence",
+            for query, fields in self._fallback_queries(discovery, missing):
+                results = self._fallback_search.search(
+                    query,
+                    country=str(discovery.get("country") or "US"),
+                    num_results=self._fallback_results,
                 )
-                for result in results
-                if result.text
-            ]
-            trace.append({"stage": "fallback", "query": query, "sources": [p.url for p in pages]})
-            if pages:
-                extraction = self._extract(discovery, pages)
-                profile, new_conflicts = self._merge(
-                    profile, extraction, discovery, "search_corroboration"
-                )
-                conflicts.extend(new_conflicts)
+                summary.fallback_searches += 1
+                reporter.event("FALLBACK", f"narrow corroboration for {', '.join(fields)}")
+                pages = [
+                    WebsitePage(
+                        url=result.url,
+                        title=result.title,
+                        text=result.text or "",
+                        page_type="search_evidence",
+                    )
+                    for result in results
+                    if result.text or normalize_linkedin_company_url(result.url)
+                ]
+                trace.append({
+                    "stage": "fallback",
+                    "query": query,
+                    "fields": fields,
+                    "sources": [page.url for page in pages],
+                })
+                if pages:
+                    extraction = self._extract(discovery, pages)
+                    profile, new_conflicts = self._merge(
+                        profile, extraction, discovery, "search_corroboration"
+                    )
+                    conflicts.extend(new_conflicts)
 
         matched_exclusions = self._matched_ownership_exclusions(
             profile, excluded_ownership_signals
@@ -279,13 +290,26 @@ class EnrichmentPipeline:
     ) -> EnrichmentExtraction:
         if self._extractor is None:
             raise RuntimeError("LLM_API_KEY is required to extract enrichment facts")
-        return self._extractor.extract(discovery, pages)
+        extraction = self._extractor.extract(discovery, pages)
+        linkedin_profiles = list(extraction.linkedin_profiles)
+        seen = {profile.url for profile in linkedin_profiles}
+        for page in pages:
+            # Only official-site anchors are deterministic. Search-result URLs require the
+            # extractor's company/domain identity check before they become observations.
+            for candidate in page.linkedin_urls:
+                normalized = normalize_linkedin_company_url(candidate)
+                if normalized is not None and normalized not in seen:
+                    linkedin_profiles.append(
+                        LinkedInObservation(url=normalized, source_url=page.url)
+                    )
+                    seen.add(normalized)
+        return extraction.model_copy(update={"linkedin_profiles": linkedin_profiles})
 
     @staticmethod
     def _apply_refresh(profile: EnrichmentProfile, refresh: str) -> EnrichmentProfile:
         updates: dict[str, object] = {}
         if refresh in {"contact", "all"}:
-            updates.update(phone=None, location=None)
+            updates.update(phone=None, location=None, linkedin=None)
         if refresh in {"independence", "all"}:
             updates["independence"] = None
         return profile.model_copy(update=updates)
@@ -301,6 +325,8 @@ class EnrichmentPipeline:
             missing.append("phone")
         if profile.location is None:
             missing.append("address")
+        if profile.linkedin is None:
+            missing.append("linkedin")
         if profile.independence is None or (
             include_unknown_independence
             and profile.independence.status == IndependenceStatus.UNKNOWN
@@ -330,7 +356,13 @@ class EnrichmentPipeline:
             independence = resolved_independence
         if independence.status == IndependenceStatus.NO:
             conflicts.append("independence_conflict: explicit parent, franchise, or acquisition evidence")
-        return EnrichmentProfile(phone=phone, location=location, independence=independence), conflicts
+        linkedin = profile.linkedin or resolve_linkedin(extraction, source)
+        return EnrichmentProfile(
+            phone=phone,
+            location=location,
+            independence=independence,
+            linkedin=linkedin,
+        ), conflicts
 
     @staticmethod
     def _confirm_inherited(
@@ -356,6 +388,24 @@ class EnrichmentPipeline:
             f'{" ".join(missing)} contact address franchise parent ownership'
         )
 
+    @classmethod
+    def _fallback_queries(
+        cls,
+        discovery: dict[str, object],
+        missing: list[str],
+    ) -> list[tuple[str, list[str]]]:
+        queries: list[tuple[str, list[str]]] = []
+        standard_fields = [field for field in missing if field != "linkedin"]
+        if standard_fields:
+            queries.append((cls._fallback_query(discovery, standard_fields), standard_fields))
+        if "linkedin" in missing:
+            queries.append((
+                f'"{discovery["company_name"]}" "{discovery["domain"]}" '
+                "site:linkedin.com/company",
+                ["linkedin"],
+            ))
+        return queries
+
     @staticmethod
     def _outcome(
         profile: EnrichmentProfile,
@@ -378,6 +428,8 @@ class EnrichmentPipeline:
             gaps.append("phone_missing")
         if profile.location is None:
             gaps.append("address_missing")
+        if profile.linkedin is None:
+            gaps.append("linkedin_missing")
         if gaps:
             return EnrichmentOutcome.GAPS, gaps
         if profile.independence is None or profile.independence.status == IndependenceStatus.UNKNOWN:

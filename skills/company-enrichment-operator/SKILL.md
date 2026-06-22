@@ -13,10 +13,12 @@ Consume a completed discovery run. Do not ask the user to restate its ICP or rec
 1. Identify the discovery run ID. Default to its `selected` bucket.
 2. Run `leads companies show-run <discovery-run-id>` when its status or result count is unclear.
 3. Explain that name, domain, vertical, geography, employee estimate, and ownership type are retained
-   from discovery. Enrichment targets phone, complete address, and independence.
+   from discovery. Enrichment targets LinkedIn company profile, phone, complete address, and
+   independence.
 4. Run `leads companies enrich <discovery-run-id>`.
 5. Read the final counts and artifact path. Report inherited facts, memory reuse, website retrieval,
    fallback searches, and ready/review/blocked totals.
+   The returned enrichment run ID is sequential and human-readable, like `enrichment-run-1`.
 6. Treat `enriched.csv` as the clean deliverable, `review.csv` as unresolved work, `blocked.csv` as
    conflicts, and `run.json` as the provenance and decision trace.
 
@@ -34,7 +36,7 @@ discovery option.
 
 - Use `--bucket reserve` only when the user asks to enrich reserve companies.
 - Use `--limit N` for an explicitly bounded run.
-- Use `--refresh contact` to refetch phone and location.
+- Use `--refresh contact` to refetch LinkedIn, phone, and location.
 - Use `--refresh independence` to rerun only the parent/franchise check.
 - Use `--refresh all` to ignore all fresh enrichment memory.
 - Use `--allow-unknown-independence` only when the user accepts complete contact profiles whose
@@ -57,6 +59,8 @@ discovery option.
 - Absence of franchise language is not proof; unresolved independence remains `unknown`.
 - Never merge address pieces from separate offices. The selected address must be one complete block
   and, for state-scoped discovery, must be in the inherited state.
+- Save only LinkedIn company profiles under `/company/`. Never save personal profiles, jobs, posts,
+  or search pages. Prefer links found directly on the official company website.
 - Do not silently replace discovery facts. Report identity, geography, and fit conflicts.
 - Do not refresh employee data during the default pass; discovery already supplied it.
 - Never expose API keys or raw environment values.

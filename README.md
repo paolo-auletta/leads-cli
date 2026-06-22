@@ -74,12 +74,23 @@ leads companies enrich DISCOVERY_RUN_ID
 
 It consumes selected companies directly from the completed discovery run. It retains company
 name, root domain, target vertical, geography, employee estimate, ownership type, and discovery
-evidence, then finds only the missing phone, complete in-scope address, and independence status.
+evidence, then finds only the missing LinkedIn company profile, phone, complete in-scope address,
+and independence status.
+
+Each enrichment execution gets a readable sequential run ID such as `enrichment-run-1`,
+`enrichment-run-2`, and so on. That ID is used both for CLI follow-up commands and the enrichment
+artifact folder under the source discovery run.
 
 Fresh enrichment facts are reused by company/domain before any website request. The bounded website
 pass reads the homepage and best contact/location/about pages; unresolved fields can use a narrow
 Exa corroboration search. Output is split into `enriched.csv`, `review.csv`, and `blocked.csv`, while
 the enrichment `run.json` keeps field provenance, conflicts, and the per-company trace.
+
+LinkedIn enrichment first checks company-profile links exposed by the official website, including
+footer icon links. Only `/company/...` URLs are accepted; personal profiles, jobs, and posts are
+discarded. If the official site has no profile link, enrichment performs a narrow LinkedIn company
+search. The normalized URL and its source page are saved in enrichment memory and exported as
+`linkedin_url`.
 
 By default, complete profiles with unknown independence remain in review. Add
 `--allow-unknown-independence` only when that uncertainty is acceptable. Generic values such as

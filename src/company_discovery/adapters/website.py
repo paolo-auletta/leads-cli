@@ -7,6 +7,7 @@ import httpx
 
 from company_discovery.domain.models import WebsitePage
 from company_discovery.services.normalization import canonical_domain
+from company_discovery.services.enrichment_resolver import normalize_linkedin_company_url
 
 
 class _PageParser(HTMLParser):
@@ -113,8 +114,21 @@ class WebsiteClient:
         parser = _PageParser()
         parser.feed(response.text)
         text = "\n".join(parser.text)[: self._max_characters]
+        linkedin_urls = list(
+            dict.fromkeys(
+                normalized
+                for href, _ in parser.links
+                if (normalized := normalize_linkedin_company_url(urljoin(str(response.url), href)))
+            )
+        )
         return (
-            WebsitePage(url=str(response.url), title=parser.title, text=text, page_type=page_type),
+            WebsitePage(
+                url=str(response.url),
+                title=parser.title,
+                text=text,
+                page_type=page_type,
+                linkedin_urls=linkedin_urls,
+            ),
             parser.links,
         )
 

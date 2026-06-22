@@ -12,6 +12,7 @@ class EnrichmentArtifactExporter:
     FIELDS = [
         "company_name",
         "domain",
+        "linkedin_url",
         "phone",
         "street_address",
         "city",
@@ -73,10 +74,12 @@ class EnrichmentArtifactExporter:
                 phone = enrichment.get("phone") or {}
                 location = enrichment.get("location") or {}
                 independence = enrichment.get("independence") or {}
+                linkedin = enrichment.get("linkedin") or {}
                 writer.writerow(
                     {
                         "company_name": discovery["company_name"],
                         "domain": discovery["domain"],
+                        "linkedin_url": linkedin.get("url", ""),
                         "phone": phone.get("display_value", ""),
                         "street_address": location.get("street_address", ""),
                         "city": location.get("city", ""),

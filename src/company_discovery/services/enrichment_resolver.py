@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from company_discovery.domain.models import (
     EnrichmentExtraction,
     IndependenceFact,
     IndependenceStatus,
+    LinkedInFact,
     LocationFact,
     PhoneFact,
 )
@@ -115,3 +117,32 @@ def resolve_independence(extraction: EnrichmentExtraction) -> IndependenceFact:
         signal_kinds=list(dict.fromkeys(signal.kind for signal in extraction.ownership_signals)),
         observed_at=datetime.now(UTC),
     )
+
+
+def normalize_linkedin_company_url(value: str) -> str | None:
+    candidate = value.strip()
+    if not candidate:
+        return None
+    if not candidate.startswith(("http://", "https://")):
+        candidate = f"https://{candidate}"
+    parsed = urlparse(candidate)
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    parts = [part for part in parsed.path.split("/") if part]
+    if host != "linkedin.com" or len(parts) < 2 or parts[0].lower() != "company":
+        return None
+    slug = parts[1]
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", slug):
+        return None
+    return f"https://www.linkedin.com/company/{slug}"
+
+
+def resolve_linkedin(extraction: EnrichmentExtraction, source: str) -> LinkedInFact | None:
+    for observation in extraction.linkedin_profiles:
+        normalized = normalize_linkedin_company_url(observation.url)
+        if normalized is not None:
+            return LinkedInFact(
+                url=normalized,
+                source=source,
+                source_url=observation.source_url,
+            )
+    return None

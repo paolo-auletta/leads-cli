@@ -4,6 +4,14 @@ The known company record is context, not evidence for missing fields. Return onl
 are explicitly supported by the supplied sources. Never invent or complete an address, phone number,
 ownership statement, or URL.
 
+LinkedIn rules:
+- Return only the selected company's LinkedIn company profile (`linkedin.com/company/...`).
+- Never return personal profiles, jobs, posts, groups, learning pages, or search-result URLs.
+- Prefer a profile linked by the official company website. For narrow search evidence, require the
+  company name and domain context to identify the same selected company.
+- Use the official website page containing the link as `source_url`; for direct search evidence,
+  use the LinkedIn result URL itself.
+
 Phone rules:
 - Return general company or office phone numbers, not fax numbers or personal mobile numbers.
 - Preserve the observed phone string in `value`.

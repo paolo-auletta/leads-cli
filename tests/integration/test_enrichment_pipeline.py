@@ -36,12 +36,23 @@ class FakeWebsite:
                 url=f"https://{domain}/contact",
                 page_type="contact",
                 text="Acme Builders, (210) 555-1234, 10 Main St, Austin TX 78701",
+                linkedin_urls=[
+                    "https://www.linkedin.com/company/acme-builders/?trk=website"
+                ],
             ),
             WebsitePage(
                 url=f"https://{domain}/about",
                 page_type="about",
                 text="Acme Builders is a family-owned construction company.",
             ),
+        ]
+
+
+class NoLinkedInWebsite(FakeWebsite):
+    def fetch(self, domain: str) -> list[WebsitePage]:
+        return [
+            page.model_copy(update={"linkedin_urls": []})
+            for page in super().fetch(domain)
         ]
 
 
@@ -167,14 +178,21 @@ def test_enrichment_inherits_discovery_resolves_state_and_reuses_memory(
 
     first = pipeline.enrich(discovery_run_id)
 
+    assert first.run_id == "enrichment-run-1"
     assert first.summary.ready == 1
     assert first.items[0].enrichment.location is not None
     assert first.items[0].enrichment.location.state == "TX"
     assert first.items[0].enrichment.location.street_address == "10 Main St"
     assert first.items[0].enrichment.independence is not None
     assert first.items[0].enrichment.independence.status == "yes"
+    assert first.items[0].enrichment.linkedin is not None
+    assert first.items[0].enrichment.linkedin.url == (
+        "https://www.linkedin.com/company/acme-builders"
+    )
+    assert first.items[0].enrichment.linkedin.source_url == "https://acme.com/contact"
     with Path(first.artifact_paths["enriched"]).open() as handle:
         rows = list(csv.DictReader(handle))
+    assert rows[0]["linkedin_url"] == "https://www.linkedin.com/company/acme-builders"
     assert rows[0]["phone"] == "(210) 555-1234"
     assert rows[0]["vertical"] == "construction"
     assert rows[0]["ownership_type"] == "privately_held"
@@ -187,6 +205,7 @@ def test_enrichment_inherits_discovery_resolves_state_and_reuses_memory(
 
     second = pipeline.enrich(discovery_run_id)
 
+    assert second.run_id == "enrichment-run-2"
     assert website.calls == 1
     assert second.summary.memory_profiles_reused == 1
     assert second.summary.websites_fetched == 0
@@ -214,6 +233,25 @@ def test_fresh_unknown_independence_is_reused_without_repeated_fetch(
     assert second.summary.memory_profiles_reused == 1
     assert second.summary.websites_fetched == 0
     assert website.calls == 1
+
+
+def test_missing_linkedin_profile_is_reported_as_an_enrichment_gap(
+    repository: DiscoveryRepository,
+    tmp_path: Path,
+) -> None:
+    discovery_run_id = _completed_discovery(repository)
+    pipeline = EnrichmentPipeline(
+        repository=EnrichmentRepository(repository.database),
+        exporter=EnrichmentArtifactExporter(tmp_path / "runs"),
+        website=NoLinkedInWebsite(),
+        extractor=FakeExtractor(),
+    )
+
+    result = pipeline.enrich(discovery_run_id)
+
+    assert result.summary.review == 1
+    assert result.items[0].outcome == "enriched_with_gaps"
+    assert result.items[0].review_flags == ["linkedin_missing"]
 
 
 def test_enrichment_blocks_family_owned_when_requested_and_reuses_signal_memory(

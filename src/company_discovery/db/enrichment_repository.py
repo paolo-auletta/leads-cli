@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from uuid import uuid4
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
 from sqlalchemy.orm import joinedload
 
@@ -25,6 +25,9 @@ class EnrichmentRunNotFoundError(LookupError):
 
 
 class EnrichmentRepository:
+    RUN_ID_PREFIX = "enrichment-run-"
+    CREATE_RUN_ATTEMPTS = 5
+
     def __init__(self, database: Database) -> None:
         self.database = database
 
@@ -60,19 +63,24 @@ class EnrichmentRepository:
             ]
 
     def create_run(self, discovery_run_id: str, bucket: str, options: dict[str, Any]) -> str:
-        run_id = uuid4().hex[:12]
-        with self.database.session() as session:
-            if session.get(DiscoveryRunRow, discovery_run_id) is None:
-                raise RunNotFoundError(f"run not found: {discovery_run_id}")
-            session.add(
-                EnrichmentRunRow(
-                    id=run_id,
-                    discovery_run_id=discovery_run_id,
-                    bucket=bucket,
-                    options_payload=options,
-                )
-            )
-        return run_id
+        for _ in range(self.CREATE_RUN_ATTEMPTS):
+            try:
+                with self.database.session() as session:
+                    if session.get(DiscoveryRunRow, discovery_run_id) is None:
+                        raise RunNotFoundError(f"run not found: {discovery_run_id}")
+                    run_id = self._next_run_id(session)
+                    session.add(
+                        EnrichmentRunRow(
+                            id=run_id,
+                            discovery_run_id=discovery_run_id,
+                            bucket=bucket,
+                            options_payload=options,
+                        )
+                    )
+                return run_id
+            except IntegrityError:
+                continue
+        raise RuntimeError("unable to allocate a unique enrichment run id")
 
     def fresh_profile(self, candidate_id: int, freshness_days: int) -> EnrichmentProfile:
         cutoff = datetime.now(UTC) - timedelta(days=freshness_days)
@@ -112,7 +120,7 @@ class EnrichmentRepository:
                     trace_payload=item.trace,
                 )
             )
-            for kind in ("phone", "location", "independence"):
+            for kind in ("phone", "location", "independence", "linkedin"):
                 fact = getattr(item.enrichment, kind)
                 if fact is not None:
                     session.add(
@@ -192,3 +200,15 @@ class EnrichmentRepository:
         if row is None:
             raise EnrichmentRunNotFoundError(f"enrichment run not found: {run_id}")
         return row
+
+    @classmethod
+    def _next_run_id(cls, session: Any) -> str:
+        ids = session.scalars(
+            select(EnrichmentRunRow.id).where(EnrichmentRunRow.id.like(f"{cls.RUN_ID_PREFIX}%"))
+        ).all()
+        next_number = 1
+        for run_id in ids:
+            suffix = run_id.removeprefix(cls.RUN_ID_PREFIX)
+            if suffix.isdigit():
+                next_number = max(next_number, int(suffix) + 1)
+        return f"{cls.RUN_ID_PREFIX}{next_number}"

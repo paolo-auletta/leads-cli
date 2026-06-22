@@ -175,6 +175,7 @@ class WebsitePage(DomainModel):
     title: str = ""
     text: str
     page_type: str = "other"
+    linkedin_urls: list[str] = Field(default_factory=list)
 
 
 class PhoneObservation(DomainModel):
@@ -199,6 +200,11 @@ class OwnershipSignal(DomainModel):
     source_url: str
 
 
+class LinkedInObservation(DomainModel):
+    url: str
+    source_url: str
+
+
 class EnrichmentExtraction(DomainModel):
     observed_company_name: str | None = None
     identity_conflict: bool = False
@@ -206,6 +212,7 @@ class EnrichmentExtraction(DomainModel):
     phones: list[PhoneObservation] = Field(default_factory=list)
     locations: list[LocationObservation] = Field(default_factory=list)
     ownership_signals: list[OwnershipSignal] = Field(default_factory=list)
+    linkedin_profiles: list[LinkedInObservation] = Field(default_factory=list)
 
 
 class PhoneFact(DomainModel):
@@ -235,10 +242,18 @@ class IndependenceFact(DomainModel):
     observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
+class LinkedInFact(DomainModel):
+    url: str
+    source: str
+    source_url: str
+    observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
 class EnrichmentProfile(DomainModel):
     phone: PhoneFact | None = None
     location: LocationFact | None = None
     independence: IndependenceFact | None = None
+    linkedin: LinkedInFact | None = None
 
 
 class EnrichmentItem(DomainModel):
