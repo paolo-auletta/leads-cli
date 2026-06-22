@@ -1,0 +1,4 @@
+interface:
+  display_name: "Company Enrichment Operator"
+  short_description: "Enrich selected companies from a discovery run"
+  default_prompt: "Use $company-enrichment-operator to enrich selected companies from this discovery run and summarize ready, review, and blocked results."

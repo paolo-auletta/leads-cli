@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "count": 2,
+  "verticals": [
+    {"mode": "known", "key": "construction", "label": "Construction"},
+    {"mode": "known", "key": "healthcare", "label": "Healthcare"}
+  ],
+  "geography": {"country": "US", "states": []},
+  "company_size": {"employee_min": 20, "employee_max": 100},
+  "include": {"keywords": [], "subtypes": []},
+  "exclude": {"keywords": [], "ownership_types": [], "company_patterns": []},
+  "novelty_mode": "full_memory",
+  "reserve_ratio": 0.5,
+  "balance_mode": "soft"
+}

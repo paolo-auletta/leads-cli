@@ -1,0 +1,52 @@
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "company-discovery"
+version = "0.1.0"
+description = "Agent-first, memory-first company discovery for outbound lead generation."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "Paolo Auletta" }]
+dependencies = [
+  "httpx>=0.27.2",
+  "pydantic>=2.10.6",
+  "pydantic-settings>=2.7.1",
+  "rich>=13.9.4",
+  "sqlalchemy>=2.0.38",
+  "tldextract>=5.1.3",
+  "typer>=0.15.1",
+]
+
+[tool.hatch.build]
+include = [
+  "src/company_discovery/**/*.py",
+  "src/company_discovery/prompts/**/*.md",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.4",
+  "pytest-cov>=6.0.0",
+]
+
+[project.scripts]
+leads = "company_discovery.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/company_discovery"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"
+
+[tool.coverage.run]
+branch = true
+source = ["company_discovery"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
