@@ -3,8 +3,8 @@
   "count": 2,
   "verticals": [
     {
-      "key": "construction",
-      "label": "Construction"
+      "key": "engineering",
+      "label": "Engineering"
     },
     {
       "key": "healthcare",
@@ -16,8 +16,8 @@
     "states": []
   },
   "company_size": {
-    "employee_min": 20,
-    "employee_max": 100
+    "employee_min": 10,
+    "employee_max": 50
   },
   "include": {
     "keywords": [],
