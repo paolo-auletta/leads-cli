@@ -184,7 +184,7 @@ YAML can be supported later if useful for humans, but JSON should remain the con
 {
   "version": 1,
   "company_source": {
-    "enrichment_run_id": "enrichment-run-7",
+    "enrichment_run_id": "company-enrich-a1b2c3d4e5f6",
     "bucket": "ready",
     "domains": []
   },
@@ -537,10 +537,15 @@ Detailed role keys, current-company checks, Apollo metadata, individual field st
 flags, source URLs, evidence, and reasoning belong in `run.json` or review artifacts rather than
 the final CSV.
 
-## Current implementation boundary
+## Current implementation status
 
-Contact discovery is implemented first. Apollo contact enrichment remains intentionally deferred
-until the team validates that discovery finds the intended people reliably.
+Both phases are implemented as separate commands. Contact enrichment consumes only accepted people
+from a completed contact discovery run, batches Apollo requests by 10, polls asynchronous request
+IDs, applies deterministic identity and company/channel checks, reuses fresh 14-day Apollo memory,
+and exports ready/review/blocked artifacts under the source contact run.
+
+The default command requests email and phone and therefore requires `APOLLO_WEBHOOK_URL`. The
+email-only fallback is `leads contacts enrich CONTACT_DISCOVERY_RUN_ID --no-phone`.
 
 ## Artifacts
 

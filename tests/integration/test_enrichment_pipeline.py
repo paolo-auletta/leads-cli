@@ -109,7 +109,7 @@ def _completed_discovery(
         {
             "version": 1,
             "count": 1,
-            "vertical": {"mode": "known", "key": "construction", "label": "Construction"},
+            "vertical": {"key": "construction", "label": "Construction"},
             "geography": {"country": "US", "states": ["TX"]},
             "company_size": {"employee_min": 10, "employee_max": 50},
             "exclude": {
@@ -178,7 +178,7 @@ def test_enrichment_inherits_discovery_resolves_state_and_reuses_memory(
 
     first = pipeline.enrich(discovery_run_id)
 
-    assert first.run_id == "enrichment-run-1"
+    assert first.run_id.startswith("company-enrich-")
     assert first.summary.ready == 1
     assert first.items[0].enrichment.location is not None
     assert first.items[0].enrichment.location.state == "TX"
@@ -192,6 +192,10 @@ def test_enrichment_inherits_discovery_resolves_state_and_reuses_memory(
     assert first.items[0].enrichment.linkedin.source_url == "https://acme.com/contact"
     with Path(first.artifact_paths["enriched"]).open() as handle:
         rows = list(csv.DictReader(handle))
+    enriched_path = Path(first.artifact_paths["enriched"])
+    assert enriched_path.parent.name == first.run_id
+    assert enriched_path.parent.parent.name == "enrich"
+    assert enriched_path.parent.parent.parent.name == discovery_run_id
     assert rows[0]["linkedin_url"] == "https://www.linkedin.com/company/acme-builders"
     assert rows[0]["phone"] == "(210) 555-1234"
     assert rows[0]["vertical"] == "construction"
@@ -205,7 +209,8 @@ def test_enrichment_inherits_discovery_resolves_state_and_reuses_memory(
 
     second = pipeline.enrich(discovery_run_id)
 
-    assert second.run_id == "enrichment-run-2"
+    assert second.run_id.startswith("company-enrich-")
+    assert second.run_id != first.run_id
     assert website.calls == 1
     assert second.summary.memory_profiles_reused == 1
     assert second.summary.websites_fetched == 0

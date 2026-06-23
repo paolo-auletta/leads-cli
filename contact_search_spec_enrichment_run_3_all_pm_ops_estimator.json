@@ -1,8 +1,8 @@
 {
   "version": 1,
   "company_source": {
-    "enrichment_run_id": "enrichment-run-1",
-    "bucket": "ready",
+    "enrichment_run_id": "enrichment-run-3",
+    "bucket": "all",
     "domains": []
   },
   "roles": [
@@ -13,12 +13,12 @@
     },
     {
       "key": "operations_manager",
-      "labels": ["operations manager", "operations director"],
+      "labels": ["operations manager", "operations director", "director of operations"],
       "max_per_company": 1
     },
     {
       "key": "estimator",
-      "labels": ["estimator", "chief estimator", "senior estimator"],
+      "labels": ["estimator", "senior estimator", "chief estimator"],
       "max_per_company": 1
     }
   ],

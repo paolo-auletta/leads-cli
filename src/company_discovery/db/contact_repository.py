@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -36,7 +37,7 @@ class ContactNotFoundError(LookupError):
 
 
 class ContactDiscoveryRepository:
-    RUN_ID_PREFIX = "contact-discovery-run-"
+    RUN_ID_PREFIX = "contact-discover-"
     CREATE_RUN_ATTEMPTS = 5
 
     def __init__(self, database: Database) -> None:
@@ -99,7 +100,7 @@ class ContactDiscoveryRepository:
         for _ in range(self.CREATE_RUN_ATTEMPTS):
             try:
                 with self.database.session() as session:
-                    run_id = self._next_run_id(session)
+                    run_id = self._new_run_id()
                     session.add(
                         ContactDiscoveryRunRow(
                             id=run_id,
@@ -351,18 +352,8 @@ class ContactDiscoveryRepository:
         return row
 
     @classmethod
-    def _next_run_id(cls, session: Any) -> str:
-        ids = session.scalars(
-            select(ContactDiscoveryRunRow.id).where(
-                ContactDiscoveryRunRow.id.like(f"{cls.RUN_ID_PREFIX}%")
-            )
-        ).all()
-        next_number = 1
-        for run_id in ids:
-            suffix = run_id.removeprefix(cls.RUN_ID_PREFIX)
-            if suffix.isdigit():
-                next_number = max(next_number, int(suffix) + 1)
-        return f"{cls.RUN_ID_PREFIX}{next_number}"
+    def _new_run_id(cls) -> str:
+        return f"{cls.RUN_ID_PREFIX}{uuid4().hex[:12]}"
 
 
 def normalize_person_name(value: str) -> str:

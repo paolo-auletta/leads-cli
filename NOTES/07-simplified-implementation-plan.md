@@ -218,8 +218,8 @@ If it only works well as LLM prompt material, it is not good enough.
   "version": 1,
   "count": 50,
   "verticals": [
-    {"mode": "known", "key": "construction", "label": "Construction"},
-    {"mode": "known", "key": "healthcare", "label": "Healthcare"}
+    {"key": "construction", "label": "Construction"},
+    {"key": "healthcare", "label": "Healthcare"}
   ],
   "geography": {
     "country": "US",
@@ -280,37 +280,35 @@ Examples:
 - no size range means no size filtering
 - no exclusions means default hygiene only
 
-## Vertical modes
+## Vertical shape
 
-The spec should support:
+The spec should support one simple vertical object:
 
-### `known`
-
-For verticals we explicitly support, such as:
-
-- construction
-- healthcare
-- engineering
-
-### `exploratory`
-
-For new verticals where the agent provides seed terms.
+For established verticals, the label is often enough:
 
 Example:
 
 ```json
 {
+  "vertical": {"key": "construction", "label": "Construction"}
+}
+```
+
+For niche or ambiguous verticals, add optional query hints:
+
+```json
+{
   "vertical": {
-    "mode": "exploratory",
-    "key": "custom",
+    "key": "marine-surveying",
     "label": "Marine Surveying",
-    "seed_terms": ["marine surveying", "vessel inspection", "cargo survey"],
-    "anti_terms": ["software", "directory", "marketplace"]
+    "search_terms": ["marine surveying", "vessel inspection", "cargo survey"],
+    "exclude_terms": ["software", "directory", "marketplace"]
   }
 }
 ```
 
-This lets the system support unknown verticals without pretending they are fully hardened.
+This keeps the same flexibility without forcing the agent to decide between artificial
+`known` and `exploratory` modes.
 
 ## Multi-vertical behavior
 
@@ -639,7 +637,8 @@ Responsibilities:
 - extract geography
 - extract size range if present
 - extract exclusions if present
-- decide whether the vertical is `known` or `exploratory`
+- choose a stable vertical `key` and `label`
+- add optional `search_terms` or `exclude_terms` only when the vertical needs query hints
 - write valid JSON only
 - avoid inventing constraints the user did not ask for
 
@@ -648,7 +647,7 @@ Rules:
 - if the user does not specify size, do not add fake size limits
 - if the user does not specify exclusions, leave them empty except for default system hygiene
 - if the geography is broad, encode it explicitly
-- if the vertical is new, use exploratory mode with seed terms
+- if the vertical is niche or ambiguous, add targeted search hints instead of a special mode
 
 Expected output:
 
@@ -690,7 +689,7 @@ Useful later for:
 - adding exclusions
 - narrowing geography
 - introducing a size range
-- converting exploratory verticals into known presets
+- improving weak vertical hints into cleaner reusable presets
 
 Not required for first implementation.
 
@@ -1018,7 +1017,6 @@ It should also explicitly state any missing constraints, for example:
 - no size filter applied
 - no custom exclusions applied
 - national search mode used
-- exploratory vertical mode used
 
 That transparency is important.
 

@@ -38,6 +38,9 @@ def test_init_db_creates_database_schema_and_runs_directory(tmp_path, monkeypatc
     assert "company_discovery_runs" in tables
     assert "company_enrichment_runs" in tables
     assert "contact_discovery_runs" in tables
+    assert "contact_enrichment_runs" in tables
+    assert "contact_enrichment_items" in tables
+    assert "contact_enrichment_facts" in tables
 
 
 def test_init_db_reset_archives_runs_and_starts_with_empty_runs(tmp_path, monkeypatch) -> None:
@@ -88,7 +91,7 @@ def test_validate_spec_reports_normalized_open_modes(tmp_path) -> None:
             {
                 "version": 1,
                 "count": 50,
-                "vertical": {"mode": "known", "key": "healthcare", "label": "Healthcare"},
+                "vertical": {"key": "healthcare", "label": "Healthcare"},
             }
         )
     )
@@ -106,7 +109,7 @@ def test_validate_spec_rejects_bad_state(tmp_path) -> None:
             {
                 "version": 1,
                 "count": 5,
-                "vertical": {"mode": "known", "key": "healthcare", "label": "Healthcare"},
+                "vertical": {"key": "healthcare", "label": "Healthcare"},
                 "geography": {"country": "US", "states": ["NOPE"]},
             }
         )
@@ -126,16 +129,19 @@ def test_discovery_and_enrichment_are_separate_commands() -> None:
     assert "DISCOVERY_RUN_ID" in enrichment_help.output
 
 
-def test_contact_discovery_is_separate_and_contact_enrichment_is_not_exposed() -> None:
+def test_contact_discovery_and_enrichment_are_separate_commands() -> None:
     contact_help = runner.invoke(app, ["contacts", "--help"])
     discovery_help = runner.invoke(app, ["contacts", "discover", "--help"])
+    enrichment_help = runner.invoke(app, ["contacts", "enrich", "--help"])
 
     assert contact_help.exit_code == 0
     assert "discover" in contact_help.output
     assert "validate-spec" in contact_help.output
-    assert runner.invoke(app, ["contacts", "enrich", "anything"]).exit_code == 2
     assert discovery_help.exit_code == 0
     assert "--spec" in discovery_help.output
+    assert enrichment_help.exit_code == 0
+    assert "CONTACT_DISCOVERY_RUN_ID" in enrichment_help.output
+    assert "--phone" in enrichment_help.output
 
 
 def test_validate_contact_spec_normalizes_roles_and_domains(tmp_path) -> None:
@@ -145,7 +151,7 @@ def test_validate_contact_spec_normalizes_roles_and_domains(tmp_path) -> None:
             {
                 "version": 1,
                 "company_source": {
-                    "enrichment_run_id": "enrichment-run-1",
+                    "enrichment_run_id": "company-enrich-a1b2c3d4e5f6",
                     "domains": ["https://www.acme.com/about"],
                 },
                 "roles": [

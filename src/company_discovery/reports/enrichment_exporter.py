@@ -32,7 +32,7 @@ class EnrichmentArtifactExporter:
         self._artifacts_root = artifacts_root
 
     def export(self, payload: dict[str, Any], summary: EnrichmentSummary) -> dict[str, str]:
-        run_dir = self._artifacts_root / payload["discovery_run_id"] / "enrichment" / payload["run_id"]
+        run_dir = self._artifacts_root / payload["discovery_run_id"] / "enrich" / payload["run_id"]
         run_dir.mkdir(parents=True, exist_ok=True)
         paths = {
             "enriched": str((run_dir / "enriched.csv").resolve()),

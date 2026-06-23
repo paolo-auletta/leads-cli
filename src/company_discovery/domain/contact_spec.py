@@ -79,7 +79,8 @@ class ContactSearchSpec(DomainModel):
     def from_file(cls, path: Path) -> "ContactSearchSpec":
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError as exc:
+            raise ValueError(f"spec file does not exist: {path}") from exc
         except json.JSONDecodeError as exc:
             raise ValueError(f"invalid JSON: {exc}") from exc
         return cls.model_validate(payload)
-

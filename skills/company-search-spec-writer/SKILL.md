@@ -13,8 +13,11 @@ Create one `company_search_spec.json` in the user's working directory.
 2. Set `version` to `1` and require a positive `count`.
 3. Use `verticals` for every new spec. Add one entry per requested vertical; multiple entries mean
    OR (separate company groups), never companies that must match every vertical.
-4. Choose `known` vertical mode for a clear established category. Use a lowercase stable key.
-5. Choose `exploratory` for a new or specialized vertical. Add concrete `seed_terms` and useful `anti_terms` derived from the vertical meaning, without adding ICP constraints.
+4. Each vertical should always use one simple shape: `key`, `label`, and optional query hints.
+   Use a lowercase stable key.
+5. Add `search_terms` only when the vertical is niche, ambiguous, or user wording needs stronger
+   search hints. Add `exclude_terms` only when a few obvious search-time negatives help reduce
+   noise. Do not invent ICP constraints.
 6. Encode broad US geography as `{"country": "US", "states": []}`. Use two-letter uppercase state codes when states are requested.
 7. Use an empty `company_size` object when no employee range was given. Never invent employee limits.
 8. Use empty arrays for omitted include/exclude criteria. When the user explicitly excludes family
@@ -39,8 +42,8 @@ Use this shape and omit no top-level fields except those with documented default
   "version": 1,
   "count": 50,
   "verticals": [
-    {"mode": "known", "key": "construction", "label": "Construction"},
-    {"mode": "known", "key": "healthcare", "label": "Healthcare"}
+    {"key": "construction", "label": "Construction"},
+    {"key": "healthcare", "label": "Healthcare"}
   ],
   "geography": {"country": "US", "states": ["TX"]},
   "company_size": {"employee_min": 20, "employee_max": 100},
@@ -64,19 +67,19 @@ Allowed novelty values are `unused_memory`, `only_new`, and `full_memory`.
 - `full_memory`: search all matching memory, including companies selected in prior runs.
 Allowed balance values are `soft`, `strict`, and `none`.
 
-For an exploratory vertical, use:
+For a niche or ambiguous vertical, add query hints like:
 
 ```json
 {
-  "mode": "exploratory",
   "key": "marine-surveying",
   "label": "Marine Surveying",
-  "seed_terms": ["marine surveying", "vessel inspection", "cargo survey"],
-  "anti_terms": ["software", "directory", "marketplace"]
+  "search_terms": ["marine surveying", "vessel inspection", "cargo survey"],
+  "exclude_terms": ["software", "directory", "marketplace"]
 }
 ```
 
 Allowed structured ownership signals are `family_owned`, `franchise`, `parent`, `subsidiary`,
 `division`, and `acquired`. When a size bound is one-sided, include only the known bound. When
 exclusions are omitted, keep all exclusion arrays empty. Preserve the user's ambiguity instead of
-silently tightening the ICP.
+silently tightening the ICP. Old specs that still use `mode`, `seed_terms`, or `anti_terms` remain
+valid, but new specs should not emit them.

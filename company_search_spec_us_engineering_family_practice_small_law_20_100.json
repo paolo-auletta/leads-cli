@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "count": 6,
+  "verticals": [
+    {
+      "mode": "known",
+      "key": "engineering",
+      "label": "Engineering"
+    },
+    {
+      "mode": "exploratory",
+      "key": "family-practice",
+      "label": "Family Practices",
+      "seed_terms": ["family practice", "family medicine", "primary care clinic"],
+      "anti_terms": ["hospital", "urgent care", "directory", "recruiter"]
+    },
+    {
+      "mode": "exploratory",
+      "key": "small-law-firms",
+      "label": "Small Law Firms",
+      "seed_terms": ["law firm", "attorneys at law", "legal services"],
+      "anti_terms": ["directory", "bar association", "legal software", "recruiter"]
+    }
+  ],
+  "geography": {
+    "country": "US",
+    "states": []
+  },
+  "company_size": {
+    "employee_min": 20,
+    "employee_max": 100
+  },
+  "include": {
+    "keywords": [],
+    "subtypes": []
+  },
+  "exclude": {
+    "keywords": [],
+    "ownership_types": [],
+    "company_patterns": [],
+    "structured": {
+      "ownership_signals": []
+    }
+  },
+  "novelty_mode": "unused_memory",
+  "reserve_ratio": 0.5,
+  "balance_mode": "soft"
+}

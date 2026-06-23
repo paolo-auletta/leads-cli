@@ -30,7 +30,7 @@ Create one strict JSON input for `leads contacts discover`.
 {
   "version": 1,
   "company_source": {
-    "enrichment_run_id": "enrichment-run-7",
+    "enrichment_run_id": "company-enrich-a1b2c3d4e5f6",
     "bucket": "ready",
     "domains": []
   },

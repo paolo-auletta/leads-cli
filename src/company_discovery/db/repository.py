@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import Select, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from company_discovery.db.models import (
@@ -48,21 +49,33 @@ class CandidateNotFoundError(LookupError):
 
 
 class DiscoveryRepository:
+    RUN_ID_PREFIX = "company-discover-"
+    CREATE_RUN_ATTEMPTS = 5
+
     def __init__(self, database: Database) -> None:
         self.database = database
 
     def create_run(self, spec: CompanySearchSpec, source_spec_path: str | None = None) -> str:
-        run_id = uuid4().hex[:12]
-        with self.database.session() as session:
-            session.add(
-                DiscoveryRunRow(
-                    id=run_id,
-                    spec_payload=spec.model_dump(mode="json"),
-                    source_spec_path=source_spec_path,
-                    status="running",
-                )
-            )
-        return run_id
+        for _ in range(self.CREATE_RUN_ATTEMPTS):
+            try:
+                run_id = self._new_run_id()
+                with self.database.session() as session:
+                    session.add(
+                        DiscoveryRunRow(
+                            id=run_id,
+                            spec_payload=spec.model_dump(mode="json"),
+                            source_spec_path=source_spec_path,
+                            status="running",
+                        )
+                    )
+                return run_id
+            except IntegrityError:
+                continue
+        raise RuntimeError("unable to allocate a unique company discovery run id")
+
+    @classmethod
+    def _new_run_id(cls) -> str:
+        return f"{cls.RUN_ID_PREFIX}{uuid4().hex[:12]}"
 
     def complete_run(
         self,

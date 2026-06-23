@@ -255,9 +255,9 @@ def test_multi_vertical_search_splits_lanes_and_soft_balance_reallocates_capacit
             "version": 1,
             "count": 6,
             "verticals": [
-                {"mode": "known", "key": "construction", "label": "Construction"},
-                {"mode": "known", "key": "healthcare", "label": "Healthcare"},
-                {"mode": "known", "key": "engineering", "label": "Engineering"},
+                {"key": "construction", "label": "Construction"},
+                {"key": "healthcare", "label": "Healthcare"},
+                {"key": "engineering", "label": "Engineering"},
             ],
             "reserve_ratio": 0,
             "balance_mode": "soft",

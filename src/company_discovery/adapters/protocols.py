@@ -4,6 +4,7 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
+from company_discovery.domain.contact_models import ApolloBatchResult, ApolloPersonRequest
 from company_discovery.domain.models import ExaSearchResult
 
 
@@ -39,5 +40,19 @@ class ContactSearchProvider(Protocol):
     def search_contact_evidence(
         self, query: str, *, country: str, num_results: int
     ) -> list[ExaSearchResult]: ...
+
+    def close(self) -> None: ...
+
+
+class ContactEnrichmentProvider(Protocol):
+    def enrich_people(
+        self,
+        people: list[ApolloPersonRequest],
+        *,
+        reveal_email: bool,
+        reveal_phone: bool,
+    ) -> ApolloBatchResult: ...
+
+    def poll(self, request_id: str) -> ApolloBatchResult: ...
 
     def close(self) -> None: ...

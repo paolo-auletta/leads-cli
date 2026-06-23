@@ -262,3 +262,63 @@ class ContactEvaluationRow(Base):
 
     run: Mapped[ContactDiscoveryRunRow] = relationship(back_populates="evaluations")
     candidate: Mapped[ContactCandidateRow] = relationship(back_populates="evaluations")
+
+
+class ContactEnrichmentRunRow(Base):
+    __tablename__ = "contact_enrichment_runs"
+
+    id: Mapped[str] = mapped_column(String(48), primary_key=True)
+    contact_discovery_run_id: Mapped[str] = mapped_column(
+        ForeignKey("contact_discovery_runs.id"), nullable=False, index=True
+    )
+    options_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
+    summary_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    artifact_paths: Mapped[dict[str, str]] = mapped_column(JSON, nullable=False, default=dict)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    items: Mapped[list[ContactEnrichmentItemRow]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", order_by="ContactEnrichmentItemRow.id"
+    )
+
+
+class ContactEnrichmentItemRow(Base):
+    __tablename__ = "contact_enrichment_items"
+    __table_args__ = (UniqueConstraint("run_id", "candidate_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(
+        ForeignKey("contact_enrichment_runs.id", ondelete="CASCADE"), index=True
+    )
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("contact_candidates.id"), nullable=False, index=True
+    )
+    discovery_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    channels_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    review_flags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    trace_payload: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    run: Mapped[ContactEnrichmentRunRow] = relationship(back_populates="items")
+
+
+class ContactEnrichmentFactRow(Base):
+    __tablename__ = "contact_enrichment_facts"
+    __table_args__ = (
+        Index("ix_contact_enrichment_fact_latest", "candidate_id", "observed_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(
+        ForeignKey("contact_candidates.id"), nullable=False, index=True
+    )
+    enrichment_run_id: Mapped[str] = mapped_column(
+        ForeignKey("contact_enrichment_runs.id"), nullable=False, index=True
+    )
+    channels_payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    review_flags: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

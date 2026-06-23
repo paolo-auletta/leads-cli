@@ -27,6 +27,7 @@ def test_repository_preserves_canonical_company_and_run_specific_history(
     assert same_id == candidate_id
 
     run_id = repository.create_run(spec)
+    assert run_id.startswith("company-discover-")
     evaluation = CandidateEvaluation(
         company_name="Acme Builders",
         domain="acme.com",

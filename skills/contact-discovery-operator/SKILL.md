@@ -1,6 +1,6 @@
 ---
 name: contact-discovery-operator
-description: Validate, execute, inspect, export, and explain live contact discovery from an existing contact_search_spec.json. Use when a user asks an agent to find current role-matched people at companies from a completed enrichment run or review a prior contact discovery run. This skill covers discovery only, not Apollo email or phone enrichment.
+description: Validate, execute, inspect, export, and explain live contact discovery from an existing contact_search_spec.json. Use when a user asks an agent to find current role-matched people at companies from a completed enrichment run or review a prior contact discovery run. Use the separate contact-enrichment-operator skill for Apollo email or phone enrichment.
 ---
 
 # Operate Contact Discovery
@@ -18,6 +18,16 @@ Find current people at already-enriched companies without changing the saved com
    accepted/review/rejected counts.
 7. Read the saved summary or `run.json` when explaining why people were accepted or held for
    review. Terminal progress is not the authoritative record.
+8. Present the results with:
+   - one compact count line for all verdicts;
+   - one table for `accepted`;
+   - one table for `review`.
+   Do not show `rejected` rows by default unless the user asks, or unless there are no useful
+   results and the rejection reasons are the important output.
+9. Keep the default tables compact and systematic. Use these columns when they are available:
+   `Company | Contact | Title | Role Key | LinkedIn | Status | Source | Notes`
+10. Show at most about 15 rows per table by default. If there are more, say that additional rows
+   are available in the exported artifacts.
 
 The command checks fresh contact memory independently for every company and role. It searches Exa
 only for remaining per-role gaps, then verifies identity, current-company evidence, and title fit.
@@ -45,5 +55,6 @@ fill the same client-facing shape. Never describe those blank fields as failed e
 - Do not search arbitrary companies outside the source enrichment run.
 - Do not describe a review contact as confirmed.
 - Do not infer current employment from Apollo or old databases.
-- Do not run contact enrichment; it is a separate future workflow.
+- Do not silently continue into contact enrichment; invoke the separate operator workflow when the
+  user asks for email or phone data.
 - Never expose API keys or raw environment values.

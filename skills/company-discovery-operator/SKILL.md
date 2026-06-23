@@ -11,7 +11,7 @@ Run company discovery from an existing spec without silently changing it.
 
 1. Locate the requested `company_search_spec.json`.
 2. Run `leads companies validate-spec --spec <path>`.
-3. Report material open modes shown by validation: national geography, no size filter, no custom exclusions, or exploratory vertical.
+3. Report material open modes shown by validation: national geography, no size filter, or no custom exclusions.
 4. State the novelty policy before running: `unused_memory` searches unused memory first,
    `only_new` bypasses memory candidates and suppresses known domains, and `full_memory` permits
    reuse of previously selected companies. If omitted, the policy is `unused_memory`.
@@ -21,6 +21,16 @@ Run company discovery from an existing spec without silently changing it.
 8. Read the final counts and Markdown summary path.
 9. Summarize memory reuse, known-domain suppression for `only_new`, external-search volume,
    selected/reserve/rejected counts, per-vertical outcomes, and any shortfall.
+10. Present the results with:
+   - one compact count line for all buckets;
+   - one table for `selected`;
+   - one table for `reserve`.
+   Do not show `rejected` rows by default unless the user asks, or unless there are no useful
+   results and the failure reasons are the main thing that matters.
+11. Keep the default tables compact and systematic. Use these columns when they are available:
+   `Company | Domain | Vertical | State | Size | Fit | Source | Notes`
+12. Show at most about 15 rows per table by default. If there are more, say that additional rows
+   are available in the exported artifacts.
 
 Discovery stops after saving and reporting its run ID. Never start enrichment through a discovery
 flag. When the user also requests enrichment, finish discovery first and pass its saved run ID to

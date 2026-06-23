@@ -42,6 +42,14 @@ class Settings(BaseSettings):
 
     contact_results_per_query: int = Field(default=10, ge=1, le=50)
 
+    apollo_api_key: str | None = None
+    apollo_base_url: str = "https://api.apollo.io"
+    apollo_timeout_seconds: float = Field(default=60.0, ge=1, le=300)
+    apollo_webhook_url: str | None = None
+    apollo_enrichment_freshness_days: int = Field(default=14, ge=1, le=365)
+    apollo_poll_interval_seconds: float = Field(default=2.0, ge=0.1, le=60)
+    apollo_poll_timeout_seconds: float = Field(default=120.0, ge=1, le=1800)
+
     @property
     def resolved_llm_response_format(self) -> Literal["json_schema", "json_object"]:
         if self.llm_response_format != "auto":

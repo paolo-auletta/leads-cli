@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "company_source": {
+    "enrichment_run_id": "enrichment-run-4",
+    "bucket": "all",
+    "domains": []
+  },
+  "roles": [
+    {
+      "key": "operations_manager",
+      "labels": ["operations manager"],
+      "max_per_company": 1
+    },
+    {
+      "key": "logistics_manager",
+      "labels": ["logistics manager"],
+      "max_per_company": 1
+    },
+    {
+      "key": "transportation_manager",
+      "labels": ["transportation manager"],
+      "max_per_company": 1
+    },
+    {
+      "key": "owner",
+      "labels": ["owner"],
+      "max_per_company": 1
+    },
+    {
+      "key": "president",
+      "labels": ["president"],
+      "max_per_company": 1
+    },
+    {
+      "key": "general_manager",
+      "labels": ["general manager"],
+      "max_per_company": 1
+    }
+  ],
+  "company_limit": null,
+  "contact_limit": null,
+  "current_only": true,
+  "require_role_match": true,
+  "memory_freshness_days": 30
+}

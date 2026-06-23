@@ -15,7 +15,7 @@ def spec() -> CompanySearchSpec:
         {
             "version": 1,
             "count": 2,
-            "vertical": {"mode": "known", "key": "construction", "label": "Construction"},
+            "vertical": {"key": "construction", "label": "Construction"},
             "geography": {"country": "US", "states": ["TX"]},
             "company_size": {"employee_min": 10, "employee_max": 100},
             "exclude": {
@@ -35,4 +35,3 @@ def repository(tmp_path: Path) -> DiscoveryRepository:
     repo = DiscoveryRepository(database)
     yield repo
     database.dispose()
-

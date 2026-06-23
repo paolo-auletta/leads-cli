@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from typing import Any
+from uuid import uuid4
 
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 
 from company_discovery.db.models import (
@@ -25,7 +26,7 @@ class EnrichmentRunNotFoundError(LookupError):
 
 
 class EnrichmentRepository:
-    RUN_ID_PREFIX = "enrichment-run-"
+    RUN_ID_PREFIX = "company-enrich-"
     CREATE_RUN_ATTEMPTS = 5
 
     def __init__(self, database: Database) -> None:
@@ -68,7 +69,7 @@ class EnrichmentRepository:
                 with self.database.session() as session:
                     if session.get(DiscoveryRunRow, discovery_run_id) is None:
                         raise RunNotFoundError(f"run not found: {discovery_run_id}")
-                    run_id = self._next_run_id(session)
+                    run_id = self._new_run_id()
                     session.add(
                         EnrichmentRunRow(
                             id=run_id,
@@ -202,13 +203,5 @@ class EnrichmentRepository:
         return row
 
     @classmethod
-    def _next_run_id(cls, session: Any) -> str:
-        ids = session.scalars(
-            select(EnrichmentRunRow.id).where(EnrichmentRunRow.id.like(f"{cls.RUN_ID_PREFIX}%"))
-        ).all()
-        next_number = 1
-        for run_id in ids:
-            suffix = run_id.removeprefix(cls.RUN_ID_PREFIX)
-            if suffix.isdigit():
-                next_number = max(next_number, int(suffix) + 1)
-        return f"{cls.RUN_ID_PREFIX}{next_number}"
+    def _new_run_id(cls) -> str:
+        return f"{cls.RUN_ID_PREFIX}{uuid4().hex[:12]}"

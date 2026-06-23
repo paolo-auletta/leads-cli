@@ -62,7 +62,7 @@ Each enrichment item starts with a discovery snapshot:
 
 ```json
 {
-  "discovery_run_id": "f4f3af3c0e70",
+  "discovery_run_id": "company-discover-a1b2c3d4e5f6",
   "company_id": 42,
   "company_name": "CSE Electric",
   "domain": "csetx.com",
@@ -324,7 +324,7 @@ Keep the discovery snapshot separate from newly enriched facts:
 {
   "company_id": 42,
   "discovery": {
-    "run_id": "f4f3af3c0e70",
+    "run_id": "company-discover-a1b2c3d4e5f6",
     "company_name": "CSE Electric",
     "domain": "csetx.com",
     "target_vertical": "construction",
@@ -461,7 +461,7 @@ Default behavior:
 The CLI should make the reuse-versus-fetch distinction visible:
 
 ```text
-Enriching discovery run f4f3af3c0e70 (5 selected companies)
+Enriching discovery run company-discover-a1b2c3d4e5f6 (5 selected companies)
 
 [1/5] CSE Electric
   INHERITED  name, domain, vertical, geography, employees, ownership type
@@ -545,7 +545,7 @@ The skill must not imply that `privately held` automatically means independent.
 
 ## V1 acceptance criteria
 
-Given a discovery run like `f4f3af3c0e70`, v1 must:
+Given a discovery run like `company-discover-a1b2c3d4e5f6`, v1 must:
 
 - retain the selected company's name, domain, target vertical, country, state, employee range, and
   ownership type;

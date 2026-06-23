@@ -21,3 +21,11 @@ Design and rebuild notes for the company-side tool live in this folder.
 ## Contacts
 
 - `10-contact-discovery-and-apollo-enrichment.md`
+
+## Code quality
+
+- `11-codebase-review-2026-06-22.md`
+
+## Packaging and operations
+
+- `12-publishing-onboarding-and-update-plan.md`

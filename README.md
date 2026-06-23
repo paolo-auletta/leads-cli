@@ -14,6 +14,8 @@ python -m venv .venv
 cp examples/company_search_spec.json company_search_spec.json
 export EXA_API_KEY=...
 export LLM_API_KEY=...
+export APOLLO_API_KEY=...
+export APOLLO_WEBHOOK_URL=https://your-public-host.example/apollo-webhook
 leads companies discover --spec company_search_spec.json
 ```
 
@@ -39,9 +41,13 @@ leads companies inspect-enrichment ENRICHMENT_RUN_ID --domain example.com
 leads companies export-enrichment ENRICHMENT_RUN_ID
 leads contacts validate-spec --spec contact_search_spec.json
 leads contacts discover --spec contact_search_spec.json
+leads contacts enrich CONTACT_DISCOVERY_RUN_ID
 leads contacts show-run CONTACT_DISCOVERY_RUN_ID
 leads contacts inspect CONTACT_DISCOVERY_RUN_ID --person "Jane Smith"
 leads contacts export CONTACT_DISCOVERY_RUN_ID
+leads contacts show-enrichment CONTACT_ENRICHMENT_RUN_ID
+leads contacts inspect-enrichment CONTACT_ENRICHMENT_RUN_ID --person "Jane Smith"
+leads contacts export-enrichment CONTACT_ENRICHMENT_RUN_ID
 ```
 
 `leads init-db` creates `company_memory.db` and its schema. If the database already exists, it
@@ -55,6 +61,11 @@ Use `--verbose` on `discover` to print generated queries and candidate-level dec
 Use `verticals` to request OR semantics: companies may match construction, healthcare, or
 engineering; they do not need to match all three. Each vertical gets an independent memory scan,
 gap calculation, Exa query plan, and evaluation lane.
+
+Each vertical now uses one simple shape: `key`, `label`, and optional query hints. Use
+`search_terms` when the label alone is too broad or niche, and `exclude_terms` when a vertical
+needs a few search-time negatives. Old specs that still contain `mode`, `seed_terms`, or
+`anti_terms` remain readable and normalize to the new shape.
 
 `balance_mode` controls final selection. `soft` (the default) fills an equal quality-gated floor
 per vertical, then reallocates unused slots to good companies from stronger lanes. `strict` keeps
@@ -87,9 +98,8 @@ name, root domain, target vertical, geography, employee estimate, ownership type
 evidence, then finds only the missing LinkedIn company profile, phone, complete in-scope address,
 and independence status.
 
-Each enrichment execution gets a readable sequential run ID such as `enrichment-run-1`,
-`enrichment-run-2`, and so on. That ID is used both for CLI follow-up commands and the enrichment
-artifact folder under the source discovery run.
+Each enrichment execution gets a random run ID such as `company-enrich-a1b2c3d4e5f6`. That ID is
+used both for CLI follow-up commands and the enrich artifact folder under the source discovery run.
 
 Fresh enrichment facts are reused by company/domain before any website request. The bounded website
 pass reads the homepage and best contact/location/about pages; unresolved fields can use a narrow
@@ -121,7 +131,7 @@ memory, so the same rule applies when a later run reuses fresh facts.
 ## Contact Discovery
 
 Contact discovery is a separate phase after company enrichment. It starts from a completed
-`enrichment-run-N`, uses only its ready companies by default, and finds current people matching
+`company-enrich-<id>`, uses only its ready companies by default, and finds current people matching
 structured role targets.
 
 ```bash
@@ -146,4 +156,25 @@ email, phone, status, notes
 
 `email` and `phone` are intentionally blank during discovery. Full queries, raw Exa results,
 evidence, role keys, verdict details, and memory/live source decisions are retained in `run.json`.
-Contact enrichment is not implemented yet.
+
+## Contact Enrichment
+
+Contact enrichment is a separate Apollo-backed command after contact discovery:
+
+```bash
+leads contacts enrich contact-discover-a1b2c3d4e5f6
+```
+
+Only accepted contacts enter enrichment. Live-web discovery remains authoritative for the person's
+identity, current company, title, role, and LinkedIn URL; Apollo can add email and phone channels
+but cannot overwrite those facts. Exact identity and company/email-domain checks classify each
+person as `ready`, `review`, or `blocked`, with raw Apollo trace and flags retained in `run.json`.
+
+Apollo bulk requests are sent in groups of 10. Phone and waterfall requests are asynchronous, so
+the default email-and-phone command requires `APOLLO_WEBHOOK_URL` and polls Apollo's request result
+until completion. Use `--no-phone` for an email-only run when a webhook is unavailable. Fresh
+Apollo results are reused for 14 days unless `--refresh` is supplied.
+
+Artifacts live below the source contact run in
+`contacts/contact-discover-<id>/enrich/contact-enrich-<id>/` and retain the same compact
+client columns used by discovery. Output is split into `ready.csv`, `review.csv`, and `blocked.csv`.

@@ -15,7 +15,7 @@ def test_national_vertical_without_size_or_exclusions_is_explicit(tmp_path) -> N
             {
                 "version": 1,
                 "count": 50,
-                "vertical": {"mode": "known", "key": "healthcare", "label": "Healthcare"},
+                "vertical": {"key": "healthcare", "label": "Healthcare"},
                 "geography": {"country": "us", "states": []},
             }
         )
@@ -47,22 +47,49 @@ def test_legacy_novelty_modes_are_normalized(legacy, normalized) -> None:
         {
             "version": 1,
             "count": 5,
-            "vertical": {"mode": "known", "key": "construction", "label": "Construction"},
+            "vertical": {"key": "construction", "label": "Construction"},
             "novelty_mode": legacy,
         }
     )
     assert spec.novelty_mode == normalized
 
 
-def test_exploratory_vertical_requires_seed_terms() -> None:
-    with pytest.raises(ValidationError, match="seed term"):
-        CompanySearchSpec.model_validate(
-            {
-                "version": 1,
-                "count": 10,
-                "vertical": {"mode": "exploratory", "key": "custom", "label": "Marine"},
-            }
-        )
+def test_reserve_count_uses_predictable_ceiling_policy() -> None:
+    one = CompanySearchSpec.model_validate(
+        {
+            "version": 1,
+            "count": 1,
+            "vertical": {"key": "construction", "label": "Construction"},
+            "reserve_ratio": 0.5,
+        }
+    )
+    three = one.model_copy(update={"count": 3})
+    disabled = one.model_copy(update={"reserve_ratio": 0})
+
+    assert one.reserve_count == 1
+    assert three.reserve_count == 2
+    assert disabled.reserve_count == 0
+
+
+def test_legacy_vertical_fields_are_normalized() -> None:
+    spec = CompanySearchSpec.model_validate(
+        {
+            "version": 1,
+            "count": 10,
+            "vertical": {
+                "mode": "exploratory",
+                "key": "custom",
+                "label": "Marine",
+                "seed_terms": [" Vessel Inspection ", "vessel inspection"],
+                "anti_terms": [" Directory ", "directory"],
+            },
+        }
+    )
+
+    assert spec.vertical.key == "custom"
+    assert spec.vertical.search_terms == ["vessel inspection"]
+    assert spec.vertical.exclude_terms == ["directory"]
+    assert "mode" not in spec.model_dump(mode="json")["verticals"][0]
 
 
 @pytest.mark.parametrize(
@@ -77,7 +104,7 @@ def test_invalid_specs_are_rejected(override, message) -> None:
     payload = {
         "version": 1,
         "count": 10,
-        "vertical": {"mode": "known", "key": "engineering", "label": "Engineering"},
+        "vertical": {"key": "engineering", "label": "Engineering"},
         **override,
     }
     with pytest.raises(ValidationError, match=message):
@@ -90,16 +117,15 @@ def test_terms_and_states_are_normalized() -> None:
             "version": 1,
             "count": 5,
             "vertical": {
-                "mode": "exploratory",
                 "key": "Marine-Surveying",
                 "label": "Marine Surveying",
-                "seed_terms": [" Vessel Inspection ", "vessel inspection"],
+                "search_terms": [" Vessel Inspection ", "vessel inspection"],
             },
             "geography": {"country": "us", "states": ["tx", "TX"]},
         }
     )
     assert spec.vertical.key == "marine-surveying"
-    assert spec.vertical.seed_terms == ["vessel inspection"]
+    assert spec.vertical.search_terms == ["vessel inspection"]
     assert spec.geography.states == ["TX"]
 
 
@@ -108,7 +134,7 @@ def test_structured_ownership_exclusions_are_normalized() -> None:
         {
             "version": 1,
             "count": 5,
-            "vertical": {"mode": "known", "key": "construction", "label": "Construction"},
+            "vertical": {"key": "construction", "label": "Construction"},
             "exclude": {
                 "structured": {"ownership_signals": [" FAMILY_OWNED ", "family_owned"]}
             },
@@ -125,9 +151,9 @@ def test_multi_vertical_spec_has_equal_quotas_and_soft_balance_by_default() -> N
             "version": 1,
             "count": 8,
             "verticals": [
-                {"mode": "known", "key": "construction", "label": "Construction"},
-                {"mode": "known", "key": "healthcare", "label": "Healthcare"},
-                {"mode": "known", "key": "engineering", "label": "Engineering"},
+                {"key": "construction", "label": "Construction"},
+                {"key": "healthcare", "label": "Healthcare"},
+                {"key": "engineering", "label": "Engineering"},
             ],
         }
     )
@@ -149,8 +175,8 @@ def test_multi_vertical_keys_must_be_unique() -> None:
                 "version": 1,
                 "count": 10,
                 "verticals": [
-                    {"mode": "known", "key": "healthcare", "label": "Healthcare"},
-                    {"mode": "known", "key": "healthcare", "label": "Health Care"},
+                    {"key": "healthcare", "label": "Healthcare"},
+                    {"key": "healthcare", "label": "Health Care"},
                 ],
             }
         )

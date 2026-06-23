@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
@@ -24,11 +25,6 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
-class VerticalMode(StrEnum):
-    KNOWN = "known"
-    EXPLORATORY = "exploratory"
-
-
 class NoveltyMode(StrEnum):
     UNUSED_MEMORY = "unused_memory"
     ONLY_NEW = "only_new"
@@ -42,27 +38,41 @@ class BalanceMode(StrEnum):
 
 
 class VerticalSpec(StrictModel):
-    mode: VerticalMode
     key: str = Field(min_length=1, pattern=r"^[a-z0-9][a-z0-9_-]*$")
     label: str = Field(min_length=1)
-    seed_terms: list[str] = Field(default_factory=list)
-    anti_terms: list[str] = Field(default_factory=list)
+    search_terms: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("search_terms", "seed_terms"),
+    )
+    exclude_terms: list[str] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("exclude_terms", "anti_terms"),
+    )
+    legacy_mode: str | None = Field(
+        default=None,
+        exclude=True,
+        validation_alias=AliasChoices("legacy_mode", "mode"),
+    )
 
     @field_validator("key", mode="before")
     @classmethod
     def normalize_key(cls, value: str) -> str:
         return value.strip().lower()
 
-    @field_validator("seed_terms", "anti_terms")
+    @field_validator("search_terms", "exclude_terms")
     @classmethod
     def normalize_terms(cls, values: list[str]) -> list[str]:
         return list(dict.fromkeys(value.strip().lower() for value in values if value.strip()))
 
-    @model_validator(mode="after")
-    def validate_mode(self) -> "VerticalSpec":
-        if self.mode == VerticalMode.EXPLORATORY and not self.seed_terms:
-            raise ValueError("exploratory verticals require at least one seed term")
-        return self
+    @field_validator("legacy_mode")
+    @classmethod
+    def normalize_legacy_mode(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip().lower()
+        if normalized not in {"known", "exploratory"}:
+            raise ValueError("legacy vertical mode must be known or exploratory")
+        return normalized
 
 
 class GeographySpec(StrictModel):
@@ -207,7 +217,9 @@ class CompanySearchSpec(StrictModel):
 
     @property
     def reserve_count(self) -> int:
-        return round(self.count * self.reserve_ratio)
+        if self.reserve_ratio == 0:
+            return 0
+        return math.ceil(self.count * self.reserve_ratio)
 
     @property
     def vertical(self) -> VerticalSpec:
@@ -242,6 +254,4 @@ class CompanySearchSpec(StrictModel):
             )
         ):
             missing.append("no custom exclusions applied")
-        if any(vertical.mode == VerticalMode.EXPLORATORY for vertical in self.verticals):
-            missing.append("exploratory vertical mode used")
         return missing

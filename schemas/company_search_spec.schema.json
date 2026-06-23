@@ -13,19 +13,19 @@
     "vertical": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mode", "key", "label"],
+      "required": ["key", "label"],
       "properties": {
-        "mode": {"enum": ["known", "exploratory"]},
         "key": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9_-]*$"},
         "label": {"type": "string", "minLength": 1},
+        "search_terms": {"type": "array", "items": {"type": "string"}, "default": []},
+        "exclude_terms": {"type": "array", "items": {"type": "string"}, "default": []},
+        "mode": {"enum": ["known", "exploratory"]},
         "seed_terms": {"type": "array", "items": {"type": "string"}, "default": []},
         "anti_terms": {"type": "array", "items": {"type": "string"}, "default": []}
       },
       "allOf": [
-        {
-          "if": {"properties": {"mode": {"const": "exploratory"}}},
-          "then": {"required": ["seed_terms"], "properties": {"seed_terms": {"minItems": 1}}}
-        }
+        {"not": {"required": ["search_terms", "seed_terms"]}},
+        {"not": {"required": ["exclude_terms", "anti_terms"]}}
       ]
     }
   },

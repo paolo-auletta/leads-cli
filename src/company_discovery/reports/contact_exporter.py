@@ -30,7 +30,7 @@ class ContactDiscoveryArtifactExporter:
         run_dir = (
             self._artifacts_root
             / payload["source_discovery_run_id"]
-            / "enrichment"
+            / "enrich"
             / payload["source_enrichment_run_id"]
             / "contacts"
             / payload["run_id"]

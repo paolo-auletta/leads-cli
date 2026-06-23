@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import Field, field_validator
 
@@ -96,3 +97,82 @@ class ContactSearchBatch(DomainModel):
     role_key: str
     role_labels: list[str]
     results: list[ExaSearchResult]
+
+
+class ContactEnrichmentOutcome(StrEnum):
+    READY = "ready"
+    REVIEW = "review"
+    BLOCKED = "blocked"
+
+
+class ApolloPersonRequest(DomainModel):
+    candidate_id: int
+    first_name: str
+    last_name: str
+    full_name: str
+    company_name: str
+    company_domain: str
+    linkedin_url: str | None = None
+
+
+class ApolloPersonMatch(DomainModel):
+    candidate_id: int
+    person_found: bool
+    full_name: str | None = None
+    linkedin_url: str | None = None
+    title: str | None = None
+    organization_name: str | None = None
+    organization_domain: str | None = None
+    email: str | None = None
+    email_status: str | None = None
+    phones: list[str] = Field(default_factory=list)
+    apollo_person_id: str | None = None
+    raw: dict[str, Any] = Field(default_factory=dict)
+
+
+class ApolloBatchResult(DomainModel):
+    matches: list[ApolloPersonMatch] = Field(default_factory=list)
+    request_id: str | None = None
+    pending: bool = False
+
+
+class ContactChannelProfile(DomainModel):
+    email_requested: bool = False
+    phone_requested: bool = False
+    email: str | None = None
+    email_status: str | None = None
+    phone: str | None = None
+    apollo_person_id: str | None = None
+    apollo_linkedin_url: str | None = None
+    apollo_company_name: str | None = None
+    apollo_company_domain: str | None = None
+    apollo_title: str | None = None
+    observed_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+
+
+class ContactEnrichmentItem(DomainModel):
+    candidate_id: int
+    discovery: dict[str, Any]
+    channels: ContactChannelProfile
+    outcome: ContactEnrichmentOutcome
+    review_flags: list[str] = Field(default_factory=list)
+    trace: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class ContactEnrichmentSummary(DomainModel):
+    contacts_loaded: int = 0
+    memory_reused: int = 0
+    apollo_requests: int = 0
+    apollo_batches: int = 0
+    async_polls: int = 0
+    ready: int = 0
+    review: int = 0
+    blocked: int = 0
+
+
+class ContactEnrichmentResult(DomainModel):
+    run_id: str
+    source_contact_run_id: str
+    summary: ContactEnrichmentSummary
+    items: list[ContactEnrichmentItem]
+    artifact_paths: dict[str, str] = Field(default_factory=dict)

@@ -18,9 +18,19 @@ Consume a completed discovery run. Do not ask the user to restate its ICP or rec
 4. Run `leads companies enrich <discovery-run-id>`.
 5. Read the final counts and artifact path. Report inherited facts, memory reuse, website retrieval,
    fallback searches, and ready/review/blocked totals.
-   The returned enrichment run ID is sequential and human-readable, like `enrichment-run-1`.
+   The returned enrichment run ID is random and prefixed, like `company-enrich-a1b2c3d4e5f6`.
 6. Treat `enriched.csv` as the clean deliverable, `review.csv` as unresolved work, `blocked.csv` as
    conflicts, and `run.json` as the provenance and decision trace.
+7. Present the results with:
+   - one compact count line for all outcomes;
+   - one table for `ready`;
+   - one table for `review`.
+   Do not show `blocked` rows by default unless the user asks, or unless there are no useful
+   results and the blocking reasons are what the user needs next.
+8. Keep the default tables compact and systematic. Use these columns when they are available:
+   `Company | Domain | Vertical | Phone | City | State | LinkedIn | Independence | Outcome | Notes`
+9. Show at most about 15 rows per table by default. If there are more, say that additional rows
+   are available in the exported artifacts.
 
 For a new search followed by enrichment, always use two separate commands:
 
@@ -44,10 +54,10 @@ discovery option.
 
 ## Follow-up operations
 
-- Show a run with `leads companies show-enrichment <enrichment-run-id>`.
+- Show a run with `leads companies show-enrichment <company-enrich-id>`.
 - Inspect provenance and trace with
-  `leads companies inspect-enrichment <enrichment-run-id> --domain <domain>`.
-- Regenerate artifacts with `leads companies export-enrichment <enrichment-run-id>`.
+  `leads companies inspect-enrichment <company-enrich-id> --domain <domain>`.
+- Regenerate artifacts with `leads companies export-enrichment <company-enrich-id>`.
 
 ## Guardrails
 

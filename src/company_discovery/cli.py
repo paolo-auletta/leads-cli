@@ -13,6 +13,7 @@ from rich.table import Table
 from rich.text import Text
 
 from company_discovery.adapters.exa import ExaClient
+from company_discovery.adapters.apollo import ApolloClient
 from company_discovery.adapters.llm import OpenAICompatibleLLM
 from company_discovery.adapters.website import WebsiteClient
 from company_discovery.db.enrichment_repository import (
@@ -24,18 +25,35 @@ from company_discovery.db.contact_repository import (
     ContactNotFoundError,
     ContactRunNotFoundError,
 )
+from company_discovery.db.contact_enrichment_repository import (
+    ContactEnrichmentRepository,
+    ContactEnrichmentRunNotFoundError,
+)
 from company_discovery.db.repository import CandidateNotFoundError, DiscoveryRepository, RunNotFoundError
 from company_discovery.db.session import Database
 from company_discovery.domain.models import EnrichmentSummary, RunSummary
-from company_discovery.domain.contact_models import ContactDiscoverySummary
+from company_discovery.domain.contact_models import (
+    ContactDiscoverySummary,
+    ContactEnrichmentSummary,
+)
 from company_discovery.domain.contact_spec import ContactSearchSpec
 from company_discovery.domain.spec import CompanySearchSpec
 from company_discovery.reports.exporter import ArtifactExporter
 from company_discovery.reports.enrichment_exporter import EnrichmentArtifactExporter
 from company_discovery.reports.contact_exporter import ContactDiscoveryArtifactExporter
+from company_discovery.reports.contact_enrichment_exporter import (
+    ContactEnrichmentArtifactExporter,
+)
 from company_discovery.services.contact_evaluator import ContactEvaluator
 from company_discovery.services.contact_pipeline import ContactDiscoveryPipeline
 from company_discovery.services.contact_progress import ContactProgressReporter
+from company_discovery.services.contact_enrichment_pipeline import (
+    ContactEnrichmentOptions,
+    ContactEnrichmentPipeline,
+)
+from company_discovery.services.contact_enrichment_progress import (
+    ContactEnrichmentProgressReporter,
+)
 from company_discovery.services.enrichment_extractor import EnrichmentExtractor
 from company_discovery.services.enrichment_pipeline import EnrichmentOptions, EnrichmentPipeline
 from company_discovery.services.enrichment_progress import EnrichmentProgressReporter
@@ -49,7 +67,10 @@ from company_discovery.settings import Settings, get_settings
 
 app = typer.Typer(no_args_is_help=True, help="Company targeting and discovery.")
 companies = typer.Typer(no_args_is_help=True, help="Discover and inspect target companies.")
-contacts = typer.Typer(no_args_is_help=True, help="Discover current people at enriched companies.")
+contacts = typer.Typer(
+    no_args_is_help=True,
+    help="Discover current people and enrich their contact channels.",
+)
 app.add_typer(companies, name="companies")
 app.add_typer(contacts, name="contacts")
 console = Console()
@@ -170,6 +191,42 @@ class RichContactProgressReporter(ContactProgressReporter):
     def save(self, run_id: str) -> None:
         console.print(f"\n  [bright_green]OUTPUT[/bright_green] saved {run_id}")
 
+
+class RichContactEnrichmentProgressReporter(ContactEnrichmentProgressReporter):
+    def start(self, source_run_id: str, contacts_count: int) -> None:
+        console.print(
+            Panel(
+                f"Contact discovery run [bold]{source_run_id}[/bold]\n"
+                f"{contacts_count} accepted contacts",
+                title="Apollo contact enrichment",
+                border_style="bright_cyan",
+            )
+        )
+
+    def memory(self, reused: int, pending: int) -> None:
+        console.print(
+            f"  [green]MEMORY[/green] reused {reused} fresh profiles | "
+            f"Apollo gap {pending}"
+        )
+
+    def batch(self, current: int, total: int, size: int) -> None:
+        console.print(
+            f"  [bright_cyan]APOLLO[/bright_cyan] batch {current}/{total} | {size} people"
+        )
+
+    def poll(self, request_id: str, attempt: int) -> None:
+        console.print(
+            f"  [yellow]POLL[/yellow] {request_id} | attempt {attempt}"
+        )
+
+    def outcome(self, name: str, outcome: str, flags: list[str]) -> None:
+        color = {"ready": "bright_green", "review": "yellow", "blocked": "red"}[outcome]
+        suffix = f" | {', '.join(flags)}" if flags else ""
+        console.print(f"  [{color}]{outcome.upper():<7}[/{color}] {name}{suffix}")
+
+    def save(self, run_id: str) -> None:
+        console.print(f"\n  [bright_green]OUTPUT[/bright_green] saved {run_id}")
+
 def build_runtime(settings: Settings) -> tuple[Database, DiscoveryRepository, DiscoveryPipeline, list[object]]:
     settings.prepare_directories()
     database = Database(settings.resolved_database_url)
@@ -252,6 +309,39 @@ def build_contact_runtime(
         results_per_query=settings.contact_results_per_query,
     )
     return database, repository, pipeline, resources
+
+
+def build_contact_enrichment_runtime(
+    settings: Settings,
+) -> tuple[
+    Database,
+    ContactEnrichmentRepository,
+    ContactEnrichmentPipeline,
+    list[object],
+]:
+    settings.prepare_directories()
+    database = Database(settings.resolved_database_url)
+    database.create_schema()
+    repository = ContactEnrichmentRepository(database)
+    provider = ApolloClient(settings)
+    pipeline = ContactEnrichmentPipeline(
+        repository=repository,
+        exporter=ContactEnrichmentArtifactExporter(settings.artifacts_dir),
+        provider=provider,
+        freshness_days=settings.apollo_enrichment_freshness_days,
+        poll_interval_seconds=settings.apollo_poll_interval_seconds,
+        poll_timeout_seconds=settings.apollo_poll_timeout_seconds,
+    )
+    return database, repository, pipeline, [provider]
+
+
+def build_contact_enrichment_repository(
+    settings: Settings,
+) -> tuple[Database, ContactEnrichmentRepository]:
+    settings.prepare_directories()
+    database = Database(settings.resolved_database_url)
+    database.create_schema()
+    return database, ContactEnrichmentRepository(database)
 
 
 def close_runtime(database: Database, resources: list[object]) -> None:
@@ -727,6 +817,134 @@ def export_contact_run(run_id: str) -> None:
         raise typer.Exit(1) from exc
     finally:
         close_runtime(database, resources)
+
+
+@contacts.command("enrich")
+def enrich_contacts(
+    contact_discovery_run_id: str,
+    email: Annotated[
+        bool,
+        typer.Option("--email/--no-email", help="Request Apollo email enrichment."),
+    ] = True,
+    phone: Annotated[
+        bool,
+        typer.Option("--phone/--no-phone", help="Request Apollo phone enrichment."),
+    ] = True,
+    refresh: Annotated[
+        bool,
+        typer.Option("--refresh", help="Ignore fresh Apollo memory and query again."),
+    ] = False,
+) -> None:
+    """Enrich accepted discovered contacts with Apollo email and phone data."""
+    if not email and not phone:
+        console.print("[bold red]Enable at least one of --email or --phone.[/bold red]")
+        raise typer.Exit(2)
+    database: Database | None = None
+    resources: list[object] = []
+    try:
+        database, _, pipeline, resources = build_contact_enrichment_runtime(get_settings())
+        result = pipeline.enrich(
+            contact_discovery_run_id,
+            options=ContactEnrichmentOptions(
+                reveal_email=email,
+                reveal_phone=phone,
+                refresh=refresh,
+            ),
+            progress=RichContactEnrichmentProgressReporter(),
+        )
+    except Exception as exc:
+        console.print(f"[bold red]Contact enrichment failed:[/bold red] {exc}")
+        raise typer.Exit(1) from exc
+    finally:
+        if database is not None:
+            close_runtime(database, resources)
+
+    console.print(
+        Panel(
+            f"Run [bold]{result.run_id}[/bold]\n"
+            f"Ready {result.summary.ready} | Review {result.summary.review} | "
+            f"Blocked {result.summary.blocked}\n"
+            f"Output: {result.artifact_paths['ready']}",
+            title="Contact enrichment complete",
+            border_style="bright_green",
+        )
+    )
+
+
+@contacts.command("show-enrichment")
+def show_contact_enrichment(run_id: str) -> None:
+    """Show counts and artifacts for an Apollo contact enrichment run."""
+    database: Database | None = None
+    try:
+        database, repository = build_contact_enrichment_repository(get_settings())
+        payload = repository.get_run(run_id)
+        summary = payload["summary"]
+        console.print(
+            Panel(
+                f"Status: {payload['status']}\n"
+                f"Contact discovery run: {payload['source_contact_run_id']}\n"
+                f"Contacts: {summary.get('contacts_loaded', 0)} | "
+                f"Memory: {summary.get('memory_reused', 0)} | "
+                f"Apollo requests: {summary.get('apollo_requests', 0)}\n"
+                f"Ready: {summary.get('ready', 0)} | "
+                f"Review: {summary.get('review', 0)} | "
+                f"Blocked: {summary.get('blocked', 0)}",
+                title=f"Contact enrichment {run_id}",
+            )
+        )
+        if payload["artifacts"]:
+            console.print_json(json.dumps(payload["artifacts"], ensure_ascii=True))
+    except (ContactEnrichmentRunNotFoundError, ValueError) as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        raise typer.Exit(1) from exc
+    finally:
+        if database is not None:
+            database.dispose()
+
+
+@contacts.command("inspect-enrichment")
+def inspect_contact_enrichment(
+    run_id: str,
+    person: Annotated[str, typer.Option("--person")],
+) -> None:
+    """Inspect Apollo fields, trust checks, and trace for one enriched person."""
+    database: Database | None = None
+    try:
+        database, repository = build_contact_enrichment_repository(get_settings())
+        console.print_json(
+            json.dumps(repository.inspect_contact(run_id, person), ensure_ascii=True)
+        )
+    except (ContactEnrichmentRunNotFoundError, LookupError) as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        raise typer.Exit(1) from exc
+    finally:
+        if database is not None:
+            database.dispose()
+
+
+@contacts.command("export-enrichment")
+def export_contact_enrichment(run_id: str) -> None:
+    """Regenerate Apollo contact enrichment artifacts from the stored run."""
+    settings = get_settings()
+    database: Database | None = None
+    try:
+        database, repository = build_contact_enrichment_repository(settings)
+        payload = repository.get_run(run_id)
+        if payload["status"] != "completed":
+            raise ValueError(f"contact enrichment run {run_id} is {payload['status']}, not completed")
+        summary = ContactEnrichmentSummary.model_validate(payload["summary"])
+        paths = ContactEnrichmentArtifactExporter(settings.artifacts_dir).export(payload, summary)
+        repository.set_artifacts(run_id, paths)
+        console.print(
+            f"Exported contact enrichment [bold]{run_id}[/bold] to "
+            f"{Path(paths['json']).parent}"
+        )
+    except (ContactEnrichmentRunNotFoundError, ValueError) as exc:
+        console.print(f"[bold red]{exc}[/bold red]")
+        raise typer.Exit(1) from exc
+    finally:
+        if database is not None:
+            database.dispose()
 
 
 if __name__ == "__main__":
