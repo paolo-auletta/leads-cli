@@ -59,6 +59,30 @@ function Invoke-Pipx {
     Invoke-Python -m pipx @Arguments
 }
 
+function Invoke-NativeQuiet {
+    param(
+        [string]$Command,
+        [string[]]$Arguments
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $Command @Arguments 2>&1
+        return @{
+            ExitCode = $LASTEXITCODE
+            Output = $output
+        }
+    } catch {
+        return @{
+            ExitCode = 1
+            Output = $null
+        }
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
 function Get-PythonExecutable {
     param([string]$Version)
 
@@ -75,9 +99,9 @@ function Get-PythonExecutable {
         if (-not (Test-Command $candidate.Command)) {
             continue
         }
-        $output = & $candidate.Command @($candidate.Arguments) 2>$null
-        if ($LASTEXITCODE -eq 0 -and $output) {
-            return ($output | Select-Object -Last 1)
+        $result = Invoke-NativeQuiet $candidate.Command $candidate.Arguments
+        if ($result.ExitCode -eq 0 -and $result.Output) {
+            return ($result.Output | Where-Object { $_ -is [string] -and $_ } | Select-Object -Last 1)
         }
     }
 
@@ -93,9 +117,9 @@ function Get-PythonExecutable {
         if (-not (Test-Path $path)) {
             continue
         }
-        $output = & $path -c $probe 2>$null
-        if ($LASTEXITCODE -eq 0 -and $output) {
-            return ($output | Select-Object -Last 1)
+        $result = Invoke-NativeQuiet $path @("-c", $probe)
+        if ($result.ExitCode -eq 0 -and $result.Output) {
+            return ($result.Output | Where-Object { $_ -is [string] -and $_ } | Select-Object -Last 1)
         }
     }
 
@@ -157,7 +181,12 @@ function Find-Leads {
 }
 
 Write-Host "Installing $PackageName with pipx using Python $LeadsPythonVersion..."
-if (-not (Test-Command "py") -and -not (Test-Command "python") -and -not (Test-Command "python3")) {
+if (Test-WindowsArm64) {
+    $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion
+    if (-not $script:LeadsPythonExe) {
+        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
+    }
+} elseif (-not (Test-Command "py") -and -not (Test-Command "python") -and -not (Test-Command "python3")) {
     $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
 }
 
