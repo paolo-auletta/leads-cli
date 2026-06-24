@@ -1,11 +1,13 @@
 ---
 name: leads-update-operator
-description: Safely guide updates for the Leads CLI, bundled agent skills, local database schema, and workspace backups.
+description: Safely guide updates for the Leads CLI package, bundled agent skills, local database schema, and workspace backups. Use together with leads-onboarding-guide when the user asks what the update system means or how the CLI works.
 ---
 
 # Operate Leads Updates
 
 Use this skill when a user asks to update, upgrade, repair, or check the installed Leads tool.
+If the user is asking conceptually how Leads updates work, read `leads-onboarding-guide` first and
+then use this skill for the exact commands and safety checks.
 
 ## Workspace And CLI
 
@@ -25,7 +27,19 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 
 Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads config show`,
 `leads skills status`, `leads skills install`, `leads skills reinstall`, `leads update --check`,
-`leads migrate --check`, and `leads migrate --apply`.
+`leads update --apply`, `leads migrate --check`, and `leads migrate --apply`.
+
+## What This Command Can And Cannot Do
+
+- `pipx upgrade leads-cli` or `pip install --upgrade leads-cli` updates the Python package and CLI
+  executable from PyPI. The running `leads` process should not try to replace itself.
+- `leads update --check` is a preflight and explanation command. It reads the release manifest and
+  reports CLI, skill, and database changes before changing the workspace.
+- `leads update --apply` is a workspace finalizer. It does not publish or install a new PyPI
+  package; it applies local follow-up work after the package is current, such as skill reinstall,
+  supported migrations, and required backups.
+- This separation is intentional: package managers handle executable code; Leads handles local
+  workspace safety.
 
 ## Safe Update Flow
 
@@ -35,16 +49,19 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
    manifest; `bundled` means it fell back to the manifest inside the currently installed package.
 4. Report CLI, skill bundle, and database schema changes separately.
 5. If `cli_update_required` is true, tell the user to upgrade the package outside the running CLI,
-   normally with `pipx upgrade leads-cli`, then rerun `leads update --check`.
-6. Explain whether a backup or migration is required.
-7. If migration is required, run `leads migrate --check` or `leads migrate --check --json` and
+   normally with `pipx upgrade leads-cli`. If they installed with plain `pip`, use their normal
+   `pip install --upgrade leads-cli` flow. Then rerun `leads update --check`.
+6. If `cli_update_required` is false but `skills_update_required` or `migration_required` is true,
+   explain that the package is already current but the workspace still needs finalization.
+7. Explain whether a backup or migration is required.
+8. If migration is required, run `leads migrate --check` or `leads migrate --check --json` and
    explain the migration action, backup path behavior, and risk summary.
-8. Ask the user before applying structural database changes.
-9. After the CLI package is current, use `leads update --apply` to apply local migrations and
+9. Ask the user before applying structural database changes.
+10. After the CLI package is current, use `leads update --apply` to apply local migrations and
    reinstall previously installed skill bundles. Use `--yes` only after explicit approval.
-10. Use a large tool-window timeout, around 10 minutes, so package upgrades, backups, migrations,
+11. Use a large tool-window timeout, around 10 minutes, so package upgrades, backups, migrations,
    and skill reinstalls can finish.
-11. Do not assume a migration is harmless just because the command exists.
+12. Do not assume a migration is harmless just because the command exists.
 
 ## Interpretation
 
@@ -59,6 +76,8 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
 - `leads migrate --check` is read-only and reports the local DB migration action.
 - `leads migrate --apply` creates a timestamped backup before supported structural changes and
   refuses unknown migration paths.
+- `leads update --apply` may reinstall skills even when there is no database migration.
+- `leads update --apply` is the correct syntax. Do not use `leads update apply`.
 - After an external package upgrade, data commands may refuse to run until migration is handled.
   That is intentional; use `leads update --check`, `leads migrate --check`, and
   `leads update --apply`.

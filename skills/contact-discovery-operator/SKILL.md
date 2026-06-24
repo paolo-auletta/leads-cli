@@ -6,6 +6,8 @@ description: Validate, execute, inspect, export, and explain live contact discov
 # Operate Contact Discovery
 
 Find current people at already-enriched companies without changing the saved company scope.
+For general questions about what Leads does, how the CLI works, or which workflow the user should
+run, read `leads-onboarding-guide` first and use this skill only for contact discovery execution.
 
 ## Workspace And CLI
 

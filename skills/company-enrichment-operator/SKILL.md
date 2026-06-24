@@ -7,6 +7,8 @@ description: Enrich company profiles from a completed Company Discovery run. Use
 
 Consume a completed discovery run. Do not ask the user to restate its ICP or reconstruct input from
 `selected.csv`; the database record is authoritative.
+For general questions about what Leads does, how the CLI works, or which workflow the user should
+run, read `leads-onboarding-guide` first and use this skill only for company enrichment execution.
 
 ## Workspace And CLI
 

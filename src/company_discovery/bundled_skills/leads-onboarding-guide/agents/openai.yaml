@@ -1,4 +1,4 @@
 interface:
   display_name: "Leads Onboarding Guide"
-  short_description: "Explain what Leads can do after install"
-  default_prompt: "Use $leads-onboarding-guide to explain what Leads can do, check my workspace, and suggest a first company discovery workflow."
+  short_description: "Central guide for how Leads works"
+  default_prompt: "Use $leads-onboarding-guide to explain how Leads works, check my workspace, summarize the main commands and workflows, and suggest a clear first company/contact workflow."

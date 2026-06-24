@@ -1,6 +1,6 @@
 {
-  "cli_version": "0.1.2",
-  "skill_bundle_version": "2026.06.3",
+  "cli_version": "0.1.3",
+  "skill_bundle_version": "2026.06.4",
   "schema_version": 1,
   "requires_migration": false,
   "breaking": false

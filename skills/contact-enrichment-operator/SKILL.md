@@ -7,6 +7,8 @@ description: Enrich accepted live-web contact discoveries with Apollo email and 
 
 Use Apollo only after contact discovery has established the person's identity, current company,
 and requested-role fit.
+For general questions about what Leads does, how the CLI works, or which workflow the user should
+run, read `leads-onboarding-guide` first and use this skill only for contact enrichment execution.
 
 ## Workspace And CLI
 

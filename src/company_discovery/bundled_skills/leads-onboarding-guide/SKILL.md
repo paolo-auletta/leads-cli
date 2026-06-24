@@ -1,13 +1,30 @@
 ---
 name: leads-onboarding-guide
-description: Guide a newly installed Leads user through what the tool can do, the main company and contact workflows, useful commands, adjustable parameters, and how to collaborate with an agent. Use when a user says they just installed Leads, asks what to do next, asks what Leads can do, asks for a tour, or appears to have an empty/new workspace.
+description: Central guide for explaining how Leads works. Use when a user says they just installed Leads, asks what to do next, asks what Leads can do, asks how any Leads CLI workflow/command/setting/update works, asks for a tour, or appears to have an empty/new workspace.
 ---
 
 # Guide New Leads Users
 
-Use this skill to orient a user in plain language. Keep the tone practical and reassuring: the
-user does not need to memorize commands or schemas because they can ask their agent for help at
-any step.
+Use this skill as the central hub for explaining Leads in plain language. When a user asks how the
+tool works, what a command does, what they can tweak, what a workspace file means, or what to do
+after install, read this skill first before reaching for a more specialized operator skill.
+
+Keep the tone practical and reassuring: the user does not need to memorize commands or schemas
+because they can ask their agent for help at any step.
+
+## When To Use This Hub
+
+Use this guide before or alongside other Leads skills when:
+
+- The user is new, confused, or asks for a non-technical explanation.
+- The user asks what Leads can do, how the CLI works, or which command to run.
+- The user asks about specs, runs, database memory, skills, config, updates, or API keys.
+- The user asks how to customize company/contact discovery or enrichment.
+- The user wants a recommended workflow before running a specialist skill.
+
+After orienting the user, route execution work to the specialist skills: company spec writing,
+company discovery, company enrichment, contact spec writing, contact discovery, contact enrichment,
+or updates.
 
 ## Workspace And CLI
 
@@ -24,7 +41,8 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 - `logs/leads.log` stores CLI diagnostics; it is not run evidence and should not be summarized as
   a lead result.
 - Useful setup/maintenance commands: `leads init`, `leads version`, `leads doctor`,
-  `leads update --check`, `leads migrate --check`, and `leads skills status`.
+  `leads update --check`, `leads update --apply`, `leads migrate --check`,
+  `leads migrate --apply`, and `leads skills status`.
 
 ## Fresh Install Check
 
@@ -50,6 +68,21 @@ Explain Leads as four connected stages:
 
 Emphasize that the agent can handle the details: the user can describe the target market in normal
 language, ask for changes, ask why a result was selected, or ask to inspect saved evidence.
+
+## How The Agent Should Explain Leads
+
+Explain that Leads is meant to be used conversationally with an agent:
+
+- The user describes the market, roles, or outreach goal in normal language.
+- The agent turns that request into a spec file, validates it, and explains the plan.
+- The CLI performs repeatable searches, saves evidence, and writes artifacts under `runs/`.
+- The agent summarizes the results in tables, helps inspect evidence, and tunes the next run.
+- The local database remembers prior companies and runs so future searches can reuse or avoid
+  known domains depending on the novelty policy.
+
+Tell the user they can ask questions at any time, such as "why was this company selected?",
+"make the search broader", "only include independent companies", "show me the evidence", or
+"what does this setting mean?"
 
 ## Suggested Agent Workflow
 
@@ -122,6 +155,32 @@ Do not overwhelm the user with every command. Mention the important ones and off
 - `leads contacts discover --spec <path>`: find contacts at enriched companies.
 - `leads contacts enrich <contact-discover-id>`: add Apollo contact details.
 - `leads skills status`: check which agent skills are installed.
+- `leads update --check`: check the latest release manifest and explain CLI, skill, and database
+  changes before doing anything.
+- `leads update --apply`: apply workspace-local update steps after the package is current, such as
+  supported migrations and skill reinstalls.
+- `pipx upgrade leads-cli`: upgrade the Python package itself when `leads update --check` says a
+  newer CLI package exists. If the user installed with plain `pip`, use their normal `pip install
+  --upgrade leads-cli` flow instead.
+
+## Updates In Plain Language
+
+Explain updates clearly because there are two different layers:
+
+- The Python package layer is updated outside the running CLI, normally with
+  `pipx upgrade leads-cli`. A running CLI should not try to replace itself.
+- The workspace layer is handled by `leads update --check` and `leads update --apply`.
+- `leads update --check` is useful because it reads the release manifest, reports whether the CLI,
+  skill bundle, or database schema changed, explains backup/migration requirements, and shows next
+  steps.
+- `leads update --apply` is useful after the package is current because it performs safe local
+  follow-up work: reinstalling updated skills, running supported migrations, and creating backups
+  when required.
+- Agents should run `leads update --check --json` when they need exact fields, explain the result
+  in plain English, then ask before applying anything that changes the workspace.
+- If `manifest_source` is `remote`, the check saw the latest public release manifest. If it is
+  `bundled`, the CLI fell back to the manifest packaged inside the installed version, so the agent
+  should explain the fallback and verify connectivity if needed.
 
 ## Response Style
 

@@ -6,6 +6,8 @@ description: Convert natural-language requests for people at previously enriched
 # Write Contact Search Specs
 
 Create one strict JSON input for `leads contacts discover`.
+For general questions about what Leads does, how the CLI works, or which workflow the user should
+run, read `leads-onboarding-guide` first and use this skill only for contact spec writing.
 
 ## Workspace And CLI
 

@@ -6,6 +6,8 @@ description: Turn natural-language company targeting or ICP requests into strict
 # Write a Company Search Spec
 
 Create one `company_search_spec.json` under the Leads workspace unless the user gives another path.
+For general questions about what Leads does, how the CLI works, or which workflow the user should
+run, read `leads-onboarding-guide` first and use this skill only for company spec writing.
 
 ## Workspace And CLI
 

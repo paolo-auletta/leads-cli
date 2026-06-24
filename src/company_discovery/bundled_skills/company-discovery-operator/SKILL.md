@@ -6,6 +6,8 @@ description: Validate, execute, inspect, rerun, and explain Company Discovery CL
 # Operate Company Discovery
 
 Run company discovery from an existing spec without silently changing it.
+For general questions about what Leads does, how the CLI works, or which workflow the user should
+run, read `leads-onboarding-guide` first and use this skill only for discovery execution.
 
 ## Workspace And CLI
 
