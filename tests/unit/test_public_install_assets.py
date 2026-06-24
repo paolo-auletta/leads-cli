@@ -14,7 +14,10 @@ def test_install_shell_script_is_syntax_valid_and_bootstraps_pipx() -> None:
 
     assert result.returncode == 0, result.stderr
     content = script.read_text(encoding="utf-8")
+    assert "BASH_VERSION" in content
     assert 'LEADS_PYTHON_VERSION="${LEADS_PYTHON_VERSION:-3.13}"' in content
+    assert "Python 3.10 or newer is required" in content
+    assert "https://www.python.org/downloads/" in content
     assert "--fetch-python" in content
     assert "run_pipx install" in content
     assert "run_pipx reinstall" in content
@@ -27,10 +30,14 @@ def test_windows_installer_bootstraps_pipx_and_runs_onboarding() -> None:
 
     assert '"3.13"' in content
     assert "win-arm64-x64-python-bootstrap" in content
+    assert "Installer revision:" in content
+    assert "LEADS_INSTALL_VERBOSE" in content
     assert "--fetch-python" in content
     assert "Test-WindowsArm64" in content
     assert "Invoke-NativeQuiet" in content
+    assert "Initialize-LeadsPython" in content
     assert "Install-LeadsPython" in content
+    assert "Test-PipxPackageInstalled" in content
     assert "& winget @wingetArgs" in content
     assert "sysconfig.get_platform" in content
     assert '"win-amd64"' in content

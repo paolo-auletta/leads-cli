@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ -z "${BASH_VERSION:-}" ]; then
+  printf 'This installer must be run with bash, for example:\n' >&2
+  printf '  curl -fsSL https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.sh | bash\n' >&2
+  exit 1
+fi
+
 PACKAGE_NAME="${LEADS_PACKAGE_NAME:-leads-cli}"
 SKIP_INIT="${LEADS_SKIP_INIT:-0}"
 LEADS_PYTHON_VERSION="${LEADS_PYTHON_VERSION:-3.13}"
@@ -18,11 +24,20 @@ find_python() {
     command -v python
     return
   fi
-  printf 'Python 3 is required to install %s.\n' "$PACKAGE_NAME" >&2
+  printf 'Python 3 is required to bootstrap pipx for %s.\n' "$PACKAGE_NAME" >&2
+  printf 'Install Python from your OS package manager or https://www.python.org/downloads/, then rerun this installer.\n' >&2
   exit 1
 }
 
 PYTHON_BIN="$(find_python)"
+if ! "$PYTHON_BIN" - <<'PY'
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+then
+  printf 'Python 3.10 or newer is required to bootstrap pipx for %s.\n' "$PACKAGE_NAME" >&2
+  exit 1
+fi
 
 run_pipx() {
   if command_exists pipx; then

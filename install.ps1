@@ -5,6 +5,7 @@ $SkipInit = $env:LEADS_SKIP_INIT -eq "1"
 $LeadsPythonVersion = if ($env:LEADS_PYTHON_VERSION) { $env:LEADS_PYTHON_VERSION } else { "3.13" }
 $LeadsPythonExe = $null
 $InstallerRevision = "2026-06-24-win-arm64-x64-python-bootstrap-3"
+$VerboseInstaller = $env:LEADS_INSTALL_VERBOSE -eq "1"
 
 function Test-Command {
     param([string]$Name)
@@ -75,6 +76,10 @@ function Invoke-NativeQuiet {
             Output = $output
         }
     } catch {
+        if ($script:VerboseInstaller) {
+            Write-Host "Probe failed: $Command $($Arguments -join ' ')"
+            Write-Host $_
+        }
         return @{
             ExitCode = 1
             Output = $null
@@ -156,6 +161,21 @@ function Get-PythonExecutable {
     return $null
 }
 
+function Initialize-LeadsPython {
+    if ($script:LeadsPythonExe) {
+        return
+    }
+
+    if (Test-WindowsArm64) {
+        $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion "win-amd64"
+        if (-not $script:LeadsPythonExe) {
+            $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion "x64"
+        }
+    } elseif (-not (Test-Command "py") -and -not (Test-Command "python") -and -not (Test-Command "python3")) {
+        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
+    }
+}
+
 function Install-LeadsPython {
     param(
         [string]$Version,
@@ -193,15 +213,6 @@ function Install-LeadsPython {
 }
 
 function Get-PipxPythonArgs {
-    if (-not $script:LeadsPythonExe) {
-        $requiredPlatform = if (Test-WindowsArm64) { "win-amd64" } else { "" }
-        $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion $requiredPlatform
-    }
-
-    if (-not $script:LeadsPythonExe -and (Test-WindowsArm64)) {
-        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion "x64"
-    }
-
     $python = if ($script:LeadsPythonExe) { $script:LeadsPythonExe } else { $LeadsPythonVersion }
     $args = @("--python", $python)
     try {
@@ -213,6 +224,23 @@ function Get-PipxPythonArgs {
         # Older pipx versions may not expose help cleanly here; --python is still the important part.
     }
     return $args
+}
+
+function Test-PipxPackageInstalled {
+    param([string]$Name)
+
+    try {
+        $listOutput = Invoke-Pipx list --short 2>$null
+    } catch {
+        return $false
+    }
+
+    foreach ($line in $listOutput) {
+        if ($line -match "^\s*$([regex]::Escape($Name))(\s|$)") {
+            return $true
+        }
+    }
+    return $false
 }
 
 function Find-Leads {
@@ -228,14 +256,8 @@ function Find-Leads {
 }
 
 Write-Host "Installing $PackageName with pipx using Python $LeadsPythonVersion..."
-if (Test-WindowsArm64) {
-    $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion "win-amd64"
-    if (-not $script:LeadsPythonExe) {
-        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion "x64"
-    }
-} elseif (-not (Test-Command "py") -and -not (Test-Command "python") -and -not (Test-Command "python3")) {
-    $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
-}
+Write-Host "Installer revision: $InstallerRevision"
+Initialize-LeadsPython
 
 if (-not (Test-Command "pipx")) {
     Invoke-Python -m pip install --user pipx
@@ -248,12 +270,7 @@ if (-not (Test-Command "pipx")) {
 
 $PipxPythonArgs = Get-PipxPythonArgs
 
-$installed = $false
-try {
-    $installed = (Invoke-Pipx list --short 2>$null) -contains $PackageName
-} catch {
-    $installed = $false
-}
+$installed = Test-PipxPackageInstalled $PackageName
 
 if ($installed) {
     $reinstallArgs = @("reinstall") + $PipxPythonArgs + @($PackageName)
