@@ -16,13 +16,13 @@ by `leads init`.
 ### macOS and Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/paoloauletta/leads/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.sh | bash
 ```
 
 ### Windows PowerShell
 
 ```powershell
-irm https://raw.githubusercontent.com/paoloauletta/leads/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 | iex
 ```
 
 ### Direct pipx install
