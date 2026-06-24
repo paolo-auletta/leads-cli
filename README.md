@@ -10,8 +10,9 @@ Design and rebuild notes live in [`NOTES/`](./NOTES/README.md).
 
 The canonical install path is `pipx`. The package is published as `leads-cli` because `leads`
 is already taken on PyPI, but it still installs the `leads` command. The installer scripts are
-thin convenience wrappers around `pipx install leads-cli` or `pipx upgrade leads-cli`, followed
-by `leads init`.
+thin convenience wrappers around `pipx install/reinstall leads-cli`, followed by `leads init`.
+They create the Leads pipx environment with Python 3.13 by default, and modern pipx versions will
+fetch that Python automatically if it is missing.
 
 ### macOS and Linux
 
@@ -28,12 +29,13 @@ irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 |
 ### Direct pipx install
 
 ```bash
-pipx install leads-cli
+pipx install --python 3.13 --fetch-python missing leads-cli
 leads init
 ```
 
 Use `LEADS_SKIP_INIT=1` with either installer when you want to install first and run onboarding
-later.
+later. Set `LEADS_PYTHON_VERSION=3.12` or another supported version only if you need to override
+the default installer Python.
 
 ## Onboarding
 

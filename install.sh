@@ -3,6 +3,7 @@ set -euo pipefail
 
 PACKAGE_NAME="${LEADS_PACKAGE_NAME:-leads-cli}"
 SKIP_INIT="${LEADS_SKIP_INIT:-0}"
+LEADS_PYTHON_VERSION="${LEADS_PYTHON_VERSION:-3.13}"
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
@@ -43,16 +44,21 @@ find_leads() {
   return 1
 }
 
-printf 'Installing %s with pipx...\n' "$PACKAGE_NAME"
+printf 'Installing %s with pipx using Python %s...\n' "$PACKAGE_NAME" "$LEADS_PYTHON_VERSION"
 if ! command_exists pipx; then
   "$PYTHON_BIN" -m pip install --user pipx
   "$PYTHON_BIN" -m pipx ensurepath || true
 fi
 
+PIPX_PYTHON_ARGS=(--python "$LEADS_PYTHON_VERSION")
+if run_pipx install --help 2>/dev/null | grep -q -- '--fetch-python'; then
+  PIPX_PYTHON_ARGS+=(--fetch-python missing)
+fi
+
 if run_pipx list --short 2>/dev/null | grep -qx "$PACKAGE_NAME"; then
-  run_pipx upgrade "$PACKAGE_NAME"
+  run_pipx reinstall "${PIPX_PYTHON_ARGS[@]}" "$PACKAGE_NAME"
 else
-  run_pipx install "$PACKAGE_NAME"
+  run_pipx install "${PIPX_PYTHON_ARGS[@]}" "$PACKAGE_NAME"
 fi
 
 if [ "$SKIP_INIT" = "1" ]; then
@@ -64,5 +70,5 @@ if LEADS_BIN="$(find_leads)"; then
   "$LEADS_BIN" init
 else
   printf 'Could not find `leads` on PATH yet; running the package through pipx once.\n'
-  run_pipx run --spec "$PACKAGE_NAME" leads init
+  run_pipx run "${PIPX_PYTHON_ARGS[@]}" --spec "$PACKAGE_NAME" leads init
 fi

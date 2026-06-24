@@ -144,7 +144,10 @@ def _next_steps(
 ) -> list[str]:
     steps: list[str] = []
     if cli_update_required:
-        steps.append("Run `pipx upgrade leads-cli` or `pip install --upgrade leads-cli`.")
+        steps.append(
+            "Run `pipx upgrade --install --python 3.13 --fetch-python missing leads-cli` "
+            "or `pip install --upgrade leads-cli`."
+        )
     if migration_required:
         if migration_supported_by_installed_cli:
             steps.append("Run `leads migrate --check`, then `leads migrate --apply` after approval.")
