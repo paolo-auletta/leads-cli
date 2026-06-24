@@ -26,12 +26,16 @@ def test_windows_installer_bootstraps_pipx_and_runs_onboarding() -> None:
     content = (ROOT / "install.ps1").read_text(encoding="utf-8")
 
     assert '"3.13"' in content
-    assert "win-arm64-python-bootstrap" in content
+    assert "win-arm64-x64-python-bootstrap" in content
     assert "--fetch-python" in content
     assert "Test-WindowsArm64" in content
     assert "Invoke-NativeQuiet" in content
     assert "Install-LeadsPython" in content
-    assert "winget install" in content
+    assert "& winget @wingetArgs" in content
+    assert '"AMD64"' in content
+    assert '"x64"' in content
+    assert "--architecture" in content
+    assert "Out-Host" in content
     assert "Python$compactVersion" in content
     assert '-and -not (Test-WindowsArm64)' in content
     assert "throw \"pipx command failed" in content

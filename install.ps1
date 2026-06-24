@@ -4,7 +4,7 @@ $PackageName = if ($env:LEADS_PACKAGE_NAME) { $env:LEADS_PACKAGE_NAME } else { "
 $SkipInit = $env:LEADS_SKIP_INIT -eq "1"
 $LeadsPythonVersion = if ($env:LEADS_PYTHON_VERSION) { $env:LEADS_PYTHON_VERSION } else { "3.13" }
 $LeadsPythonExe = $null
-$InstallerRevision = "2026-06-24-win-arm64-python-bootstrap-2"
+$InstallerRevision = "2026-06-24-win-arm64-x64-python-bootstrap"
 
 function Test-Command {
     param([string]$Name)
@@ -85,15 +85,50 @@ function Invoke-NativeQuiet {
 }
 
 function Get-PythonExecutable {
-    param([string]$Version)
+    param(
+        [string]$Version,
+        [string]$RequiredMachine = ""
+    )
 
-    $probe = "import sys; print(sys.executable)"
+    $required = $RequiredMachine.ToUpperInvariant()
+    $probe = "import platform, sys; ok = sys.version_info[:2] == tuple(map(int, '$Version'.split('.'))); machine = platform.machine().upper(); required = '$required'; ok = ok and (not required or machine == required); print(sys.executable) if ok else None; raise SystemExit(0 if ok else 1)"
     $compactVersion = $Version -replace "\.", ""
-    $candidates = @(
+
+    $pathCandidates = @()
+    if ($env:LOCALAPPDATA) {
+        if ($RequiredMachine -eq "AMD64") {
+            $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion\python.exe"
+        }
+        $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion-arm64\python.exe"
+        $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion\python.exe"
+    }
+    if ($env:ProgramFiles) {
+        if ($RequiredMachine -eq "AMD64") {
+            $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion\python.exe"
+        }
+        $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion-arm64\python.exe"
+        $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion\python.exe"
+    }
+
+    foreach ($path in ($pathCandidates | Select-Object -Unique)) {
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        $result = Invoke-NativeQuiet $path @("-c", $probe)
+        if ($result.ExitCode -eq 0 -and $result.Output) {
+            return ($result.Output | Where-Object { $_ -is [string] -and $_ } | Select-Object -Last 1)
+        }
+    }
+
+    $candidates = @()
+    if ($RequiredMachine -eq "AMD64") {
+        $candidates += @{ Command = "py"; Arguments = @("-$Version-64", "-c", $probe) }
+    }
+    $candidates += @(
         @{ Command = "py"; Arguments = @("-$Version", "-c", $probe) },
         @{ Command = "python$Version"; Arguments = @("-c", $probe) },
-        @{ Command = "python3"; Arguments = @("-c", "import sys; ok = sys.version_info[:2] == tuple(map(int, '$Version'.split('.'))); print(sys.executable) if ok else None; raise SystemExit(0 if ok else 1)") },
-        @{ Command = "python"; Arguments = @("-c", "import sys; ok = sys.version_info[:2] == tuple(map(int, '$Version'.split('.'))); print(sys.executable) if ok else None; raise SystemExit(0 if ok else 1)") }
+        @{ Command = "python3"; Arguments = @("-c", $probe) },
+        @{ Command = "python"; Arguments = @("-c", $probe) }
     )
 
     foreach ($candidate in $candidates) {
@@ -106,41 +141,39 @@ function Get-PythonExecutable {
         }
     }
 
-    $pathCandidates = @()
-    if ($env:LOCALAPPDATA) {
-        $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion\python.exe"
-    }
-    if ($env:ProgramFiles) {
-        $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion\python.exe"
-    }
-
-    foreach ($path in $pathCandidates) {
-        if (-not (Test-Path $path)) {
-            continue
-        }
-        $result = Invoke-NativeQuiet $path @("-c", $probe)
-        if ($result.ExitCode -eq 0 -and $result.Output) {
-            return ($result.Output | Where-Object { $_ -is [string] -and $_ } | Select-Object -Last 1)
-        }
-    }
-
     return $null
 }
 
 function Install-LeadsPython {
-    param([string]$Version)
+    param(
+        [string]$Version,
+        [string]$Architecture = ""
+    )
 
     if (-not (Test-Command "winget")) {
         throw "Python $Version is required for Leads, and this installer cannot install it because winget is unavailable. Install Python $Version, then rerun this installer."
     }
 
-    Write-Host "Python $Version was not found. Installing Python $Version with winget..."
-    & winget install --id "Python.Python.$Version" --exact --source winget --accept-package-agreements --accept-source-agreements
+    $architectureLabel = if ($Architecture) { " ($Architecture)" } else { "" }
+    Write-Host "Python $Version$architectureLabel was not found. Installing Python $Version$architectureLabel with winget..."
+    $wingetArgs = @(
+        "install",
+        "--id", "Python.Python.$Version",
+        "--exact",
+        "--source", "winget",
+        "--accept-package-agreements",
+        "--accept-source-agreements"
+    )
+    if ($Architecture) {
+        $wingetArgs += @("--architecture", $Architecture, "--force")
+    }
+    & winget @wingetArgs | Out-Host
     if ($LASTEXITCODE -ne 0) {
         throw "winget could not install Python $Version. Install Python $Version, then rerun this installer."
     }
 
-    $python = Get-PythonExecutable $Version
+    $requiredMachine = if ($Architecture -eq "x64") { "AMD64" } else { "" }
+    $python = Get-PythonExecutable $Version $requiredMachine
     if (-not $python) {
         throw "Python $Version was installed, but this shell cannot find it yet. Open a new PowerShell window and rerun this installer."
     }
@@ -149,11 +182,12 @@ function Install-LeadsPython {
 
 function Get-PipxPythonArgs {
     if (-not $script:LeadsPythonExe) {
-        $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion
+        $requiredMachine = if (Test-WindowsArm64) { "AMD64" } else { "" }
+        $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion $requiredMachine
     }
 
     if (-not $script:LeadsPythonExe -and (Test-WindowsArm64)) {
-        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
+        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion "x64"
     }
 
     $python = if ($script:LeadsPythonExe) { $script:LeadsPythonExe } else { $LeadsPythonVersion }
@@ -183,9 +217,9 @@ function Find-Leads {
 
 Write-Host "Installing $PackageName with pipx using Python $LeadsPythonVersion..."
 if (Test-WindowsArm64) {
-    $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion
+    $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion "AMD64"
     if (-not $script:LeadsPythonExe) {
-        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
+        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion "x64"
     }
 } elseif (-not (Test-Command "py") -and -not (Test-Command "python") -and -not (Test-Command "python3")) {
     $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
