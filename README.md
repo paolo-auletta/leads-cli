@@ -13,6 +13,8 @@ is already taken on PyPI, but it still installs the `leads` command. The install
 thin convenience wrappers around `pipx install/reinstall leads-cli`, followed by `leads init`.
 They create the Leads pipx environment with Python 3.13 by default, and modern pipx versions will
 fetch that Python automatically if it is missing.
+On Windows ARM64, the PowerShell installer uses an installed Python 3.13 or installs it with
+`winget` when available, because some pipx versions cannot fetch standalone Python builds on ARM64.
 
 ### macOS and Linux
 

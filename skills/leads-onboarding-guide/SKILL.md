@@ -188,18 +188,20 @@ Do not overwhelm the user with every command. Mention the important ones and off
   changes before doing anything.
 - `leads update --apply`: apply workspace-local update steps after the package is current, such as
   supported migrations and skill reinstalls.
-- `pipx upgrade --install --python 3.13 --fetch-python missing leads-cli`: upgrade the Python
-  package itself when `leads update --check` says a newer CLI package exists. This keeps the Leads
-  pipx environment on Python 3.13, which avoids common Windows source-build failures. If the user
-  installed with plain `pip`, use their normal `pip install --upgrade leads-cli` flow instead.
+- Rerun the public installer when `leads update --check` says a newer CLI package exists:
+  `curl -fsSL https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.sh | bash`
+  on macOS/Linux, or
+  `irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 | iex` on
+  Windows. The installer keeps the Leads pipx environment on Python 3.13 and handles Windows ARM64
+  without relying on pipx Python fetching. If the user installed with plain `pip`, use their normal
+  `pip install --upgrade leads-cli` flow instead.
 
 ## Updates In Plain Language
 
 Explain updates clearly because there are two different layers:
 
-- The Python package layer is updated outside the running CLI, normally with
-  `pipx upgrade --install --python 3.13 --fetch-python missing leads-cli`. A running CLI should
-  not try to replace itself.
+- The Python package layer is updated outside the running CLI, normally by rerunning the public
+  installer. A running CLI should not try to replace itself.
 - The workspace layer is handled by `leads update --check` and `leads update --apply`.
 - `leads update --check` is useful because it reads the release manifest, reports whether the CLI,
   skill bundle, or database schema changed, explains backup/migration requirements, and shows next

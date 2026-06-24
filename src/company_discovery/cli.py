@@ -956,8 +956,11 @@ def update(
             "- your agent can inspect the update plan and explain what will happen before applying changes\n\n"
             "Suggested flow:\n"
             "1. `leads update --check`\n"
-            "2. If CLI upgrade is needed: "
-            "`pipx upgrade --install --python 3.13 --fetch-python missing leads-cli`\n"
+            "2. If CLI upgrade is needed, rerun the public installer "
+            "(`curl -fsSL https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.sh | bash` "
+            "on macOS/Linux, or "
+            "`irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 | iex` "
+            "on Windows)\n"
             "3. `leads update --check`\n"
             "4. ask for confirmation before structural changes, then run "
             "`leads update --apply` after reviewing migrations/backups/skill syncs.",
@@ -1014,8 +1017,11 @@ def _apply_update(settings: Settings, *, remote: bool, yes: bool) -> dict[str, o
             Panel(
                 "A newer CLI package is available. Upgrade the package first, then rerun "
                 "`leads update --check` and `leads update --apply`.\n\n"
-                "Recommended command:\n"
-                "pipx upgrade --install --python 3.13 --fetch-python missing leads-cli",
+                "Recommended commands:\n"
+                "macOS/Linux: curl -fsSL https://raw.githubusercontent.com/paolo-auletta/"
+                "leads-cli/main/install.sh | bash\n"
+                "Windows: irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/"
+                "install.ps1 | iex",
                 title="CLI upgrade required",
                 border_style="yellow",
             )

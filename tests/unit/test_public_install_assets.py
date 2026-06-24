@@ -27,6 +27,11 @@ def test_windows_installer_bootstraps_pipx_and_runs_onboarding() -> None:
 
     assert '"3.13"' in content
     assert "--fetch-python" in content
+    assert "Test-WindowsArm64" in content
+    assert "Install-LeadsPython" in content
+    assert "winget install" in content
+    assert "Python$compactVersion" in content
+    assert '-and -not (Test-WindowsArm64)' in content
     assert "throw \"pipx command failed" in content
     assert "Invoke-Pipx install" in content
     assert '@("reinstall")' in content
@@ -41,4 +46,5 @@ def test_readme_leads_with_public_install_paths() -> None:
     assert "curl -fsSL https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.sh | bash" in content
     assert "irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 | iex" in content
     assert "pipx install --python 3.13 --fetch-python missing leads-cli" in content
+    assert "Windows ARM64" in content
     assert "leads init" in content

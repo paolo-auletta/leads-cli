@@ -3,14 +3,26 @@ $ErrorActionPreference = "Stop"
 $PackageName = if ($env:LEADS_PACKAGE_NAME) { $env:LEADS_PACKAGE_NAME } else { "leads-cli" }
 $SkipInit = $env:LEADS_SKIP_INIT -eq "1"
 $LeadsPythonVersion = if ($env:LEADS_PYTHON_VERSION) { $env:LEADS_PYTHON_VERSION } else { "3.13" }
+$LeadsPythonExe = $null
 
 function Test-Command {
     param([string]$Name)
     return [bool](Get-Command $Name -ErrorAction SilentlyContinue)
 }
 
+function Test-WindowsArm64 {
+    return ($env:PROCESSOR_ARCHITECTURE -eq "ARM64") -or ($env:PROCESSOR_ARCHITEW6432 -eq "ARM64")
+}
+
 function Invoke-Python {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)
+    if ($script:LeadsPythonExe) {
+        & $script:LeadsPythonExe @Arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "Python command failed: $script:LeadsPythonExe $($Arguments -join ' ')"
+        }
+        return
+    }
     if (Test-Command "py") {
         & py -3 @Arguments
         if ($LASTEXITCODE -ne 0) {
@@ -47,11 +59,83 @@ function Invoke-Pipx {
     Invoke-Python -m pipx @Arguments
 }
 
+function Get-PythonExecutable {
+    param([string]$Version)
+
+    $probe = "import sys; print(sys.executable)"
+    $compactVersion = $Version -replace "\.", ""
+    $candidates = @(
+        @{ Command = "py"; Arguments = @("-$Version", "-c", $probe) },
+        @{ Command = "python$Version"; Arguments = @("-c", $probe) },
+        @{ Command = "python3"; Arguments = @("-c", "import sys; ok = sys.version_info[:2] == tuple(map(int, '$Version'.split('.'))); print(sys.executable) if ok else None; raise SystemExit(0 if ok else 1)") },
+        @{ Command = "python"; Arguments = @("-c", "import sys; ok = sys.version_info[:2] == tuple(map(int, '$Version'.split('.'))); print(sys.executable) if ok else None; raise SystemExit(0 if ok else 1)") }
+    )
+
+    foreach ($candidate in $candidates) {
+        if (-not (Test-Command $candidate.Command)) {
+            continue
+        }
+        $output = & $candidate.Command @($candidate.Arguments) 2>$null
+        if ($LASTEXITCODE -eq 0 -and $output) {
+            return ($output | Select-Object -Last 1)
+        }
+    }
+
+    $pathCandidates = @()
+    if ($env:LOCALAPPDATA) {
+        $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion\python.exe"
+    }
+    if ($env:ProgramFiles) {
+        $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion\python.exe"
+    }
+
+    foreach ($path in $pathCandidates) {
+        if (-not (Test-Path $path)) {
+            continue
+        }
+        $output = & $path -c $probe 2>$null
+        if ($LASTEXITCODE -eq 0 -and $output) {
+            return ($output | Select-Object -Last 1)
+        }
+    }
+
+    return $null
+}
+
+function Install-LeadsPython {
+    param([string]$Version)
+
+    if (-not (Test-Command "winget")) {
+        throw "Python $Version is required for Leads, and this installer cannot install it because winget is unavailable. Install Python $Version, then rerun this installer."
+    }
+
+    Write-Host "Python $Version was not found. Installing Python $Version with winget..."
+    & winget install --id "Python.Python.$Version" --exact --source winget --accept-package-agreements --accept-source-agreements
+    if ($LASTEXITCODE -ne 0) {
+        throw "winget could not install Python $Version. Install Python $Version, then rerun this installer."
+    }
+
+    $python = Get-PythonExecutable $Version
+    if (-not $python) {
+        throw "Python $Version was installed, but this shell cannot find it yet. Open a new PowerShell window and rerun this installer."
+    }
+    return $python
+}
+
 function Get-PipxPythonArgs {
-    $args = @("--python", $LeadsPythonVersion)
+    if (-not $script:LeadsPythonExe) {
+        $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion
+    }
+
+    if (-not $script:LeadsPythonExe -and (Test-WindowsArm64)) {
+        $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
+    }
+
+    $python = if ($script:LeadsPythonExe) { $script:LeadsPythonExe } else { $LeadsPythonVersion }
+    $args = @("--python", $python)
     try {
         $help = (Invoke-Pipx install --help 2>&1) -join "`n"
-        if ($help -match "--fetch-python") {
+        if ($help -match "--fetch-python" -and -not (Test-WindowsArm64)) {
             $args += @("--fetch-python", "missing")
         }
     } catch {
@@ -73,6 +157,10 @@ function Find-Leads {
 }
 
 Write-Host "Installing $PackageName with pipx using Python $LeadsPythonVersion..."
+if (-not (Test-Command "py") -and -not (Test-Command "python") -and -not (Test-Command "python3")) {
+    $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion
+}
+
 if (-not (Test-Command "pipx")) {
     Invoke-Python -m pip install --user pipx
     try {

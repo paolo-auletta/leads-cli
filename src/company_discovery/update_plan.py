@@ -145,8 +145,10 @@ def _next_steps(
     steps: list[str] = []
     if cli_update_required:
         steps.append(
-            "Run `pipx upgrade --install --python 3.13 --fetch-python missing leads-cli` "
-            "or `pip install --upgrade leads-cli`."
+            "Run the public installer again (`curl -fsSL https://raw.githubusercontent.com/"
+            "paolo-auletta/leads-cli/main/install.sh | bash` on macOS/Linux, or "
+            "`irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 | iex` "
+            "on Windows), or use `pip install --upgrade leads-cli` if you installed with plain pip."
         )
     if migration_required:
         if migration_supported_by_installed_cli:

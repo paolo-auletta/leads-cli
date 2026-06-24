@@ -32,10 +32,13 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
 
 ## What This Command Can And Cannot Do
 
-- `pipx upgrade --install --python 3.13 --fetch-python missing leads-cli` or
-  `pip install --upgrade leads-cli` updates the Python package and CLI executable from PyPI. The
-  pipx command keeps the Leads environment on Python 3.13, which avoids common Windows
-  source-build failures. The running `leads` process should not try to replace itself.
+- Rerunning the public installer updates the Python package and CLI executable from PyPI:
+  `curl -fsSL https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.sh | bash`
+  on macOS/Linux, or
+  `irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 | iex` on
+  Windows. The installer keeps the Leads environment on Python 3.13 and handles Windows ARM64
+  without relying on pipx Python fetching. The running `leads` process should not try to replace
+  itself.
 - `leads update --check` is a preflight and explanation command. It reads the release manifest and
   reports CLI, skill, and database changes before changing the workspace.
 - `leads update --apply` is a workspace finalizer. It does not publish or install a new PyPI
@@ -53,10 +56,9 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
 3. Report the manifest source. `remote` means the check found the latest published release
    manifest; `bundled` means it fell back to the manifest inside the currently installed package.
 4. Report CLI, skill bundle, and database schema changes separately.
-5. If `cli_update_required` is true, tell the user to upgrade the package outside the running CLI,
-   normally with `pipx upgrade --install --python 3.13 --fetch-python missing leads-cli`. If they
-   installed with plain `pip`, use their normal `pip install --upgrade leads-cli` flow. Then rerun
-   `leads update --check`.
+5. If `cli_update_required` is true, tell the user to upgrade the package outside the running CLI
+   by rerunning the public installer. If they installed with plain `pip`, use their normal
+   `pip install --upgrade leads-cli` flow. Then rerun `leads update --check`.
 6. If `cli_update_required` is false but `skills_update_required` or `migration_required` is true,
    explain that the package is already current but the workspace still needs finalization.
 7. Explain whether a backup or migration is required.
