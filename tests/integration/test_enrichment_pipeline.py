@@ -100,6 +100,13 @@ class UnknownIndependenceExtractor(FakeExtractor):
         return result.model_copy(update={"ownership_signals": []})
 
 
+class FailingExtractor:
+    def extract(self, discovery: dict[str, object], pages: list[WebsitePage]) -> EnrichmentExtraction:
+        raise ValueError(
+            "LLM returned invalid EnrichmentExtraction: Invalid JSON: EOF while parsing an object"
+        )
+
+
 def _completed_discovery(
     repository: DiscoveryRepository,
     *,
@@ -257,6 +264,33 @@ def test_missing_linkedin_profile_is_reported_as_an_enrichment_gap(
     assert result.summary.review == 1
     assert result.items[0].outcome == "enriched_with_gaps"
     assert result.items[0].review_flags == ["linkedin_missing"]
+
+
+def test_enrichment_extraction_failure_marks_company_failed_without_aborting_run(
+    repository: DiscoveryRepository,
+    tmp_path: Path,
+) -> None:
+    discovery_run_id = _completed_discovery(repository)
+    enrichment_repository = EnrichmentRepository(repository.database)
+    pipeline = EnrichmentPipeline(
+        repository=enrichment_repository,
+        exporter=EnrichmentArtifactExporter(tmp_path / "runs"),
+        website=FakeWebsite(),
+        extractor=FailingExtractor(),
+    )
+
+    result = pipeline.enrich(discovery_run_id)
+
+    assert result.summary.processed == 1
+    assert result.summary.failed == 1
+    assert result.items[0].outcome == "enrichment_failed"
+    assert result.items[0].review_flags == ["enrichment_failed"]
+    assert "EOF while parsing an object" in result.items[0].conflicts[0]
+    assert result.items[0].trace[-1]["stage"] == "error"
+    with Path(result.artifact_paths["blocked"]).open() as handle:
+        blocked_rows = list(csv.DictReader(handle))
+    assert blocked_rows[0]["outcome"] == "enrichment_failed"
+    assert enrichment_repository.get_run(result.run_id)["status"] == "completed"
 
 
 def test_enrichment_blocks_family_owned_when_requested_and_reuses_signal_memory(

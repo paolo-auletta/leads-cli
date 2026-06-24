@@ -24,12 +24,11 @@ from company_discovery.services.query_planner import QueryPlanner
 class FakeLLM:
     def generate(self, *, system_prompt: str, user_prompt: str, response_model: type[BaseModel]):
         if response_model is QueryPlan:
+            query_count = json.loads(user_prompt)["required_query_count"]
             return QueryPlan(
-                queries=[f"Texas construction query {index}" for index in range(6)],
+                queries=[f"Texas construction query {index}" for index in range(query_count)],
                 rationale="Cover Texas construction terminology",
             )
-        import json
-
         candidate = json.loads(user_prompt)["candidate"]
         possible = candidate["domain"] == "uncertain.com"
         return CandidateEvaluation(
@@ -60,9 +59,11 @@ class FakeExa:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.num_results: list[int] = []
 
     def search(self, query: str, *, country: str, num_results: int) -> list[ExaSearchResult]:
         self.calls += 1
+        self.num_results.append(num_results)
         urls = [
             ("Acme Builders | Texas", "https://acme.com"),
             ("Beta Construction", "https://beta.com/about"),
@@ -124,6 +125,35 @@ def test_external_run_persists_exports_then_next_run_uses_memory_only(
     assert second.summary.queries_generated == 0
     assert second.summary.selected == 2
     assert second.queries == []
+
+
+def test_spec_external_search_controls_query_count_and_exa_results(
+    repository: DiscoveryRepository,
+    tmp_path: Path,
+) -> None:
+    spec = CompanySearchSpec.model_validate(
+        {
+            "version": 1,
+            "count": 2,
+            "vertical": {"key": "construction", "label": "Construction"},
+            "geography": {"country": "US", "states": ["TX"]},
+            "external_search": {"exa_searches": 3, "results_per_search": 2},
+        }
+    )
+    llm = FakeLLM()
+    exa = FakeExa()
+    result = DiscoveryPipeline(
+        repository=repository,
+        exporter=ArtifactExporter(tmp_path / "runs"),
+        query_planner=QueryPlanner(llm),
+        evaluator=CandidateEvaluator(llm),
+        search_provider=exa,
+    ).discover(spec)
+
+    assert exa.calls == 3
+    assert exa.num_results == [2, 2, 2]
+    assert result.summary.queries_generated == 3
+    assert len(result.queries) == 3
 
 
 def test_only_new_skips_memory_and_suppresses_all_known_external_domains(
@@ -198,9 +228,10 @@ class MultiVerticalLLM:
         payload = json.loads(user_prompt)
         if response_model is QueryPlan:
             vertical = payload["search_spec"]["verticals"][0]["key"]
+            query_count = payload["required_query_count"]
             self.planned_verticals.append(vertical)
             return QueryPlan(
-                queries=[f"{vertical} query {index}" for index in range(6)],
+                queries=[f"{vertical} query {index}" for index in range(query_count)],
                 rationale=f"Dedicated {vertical} coverage",
             )
 

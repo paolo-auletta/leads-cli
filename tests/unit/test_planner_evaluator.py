@@ -13,7 +13,7 @@ from company_discovery.domain.models import (
     NormalizedCandidate,
     QueryPlan,
 )
-from company_discovery.domain.spec import CompanySearchSpec
+from company_discovery.domain.spec import CompanySearchSpec, ExternalSearchSpec
 from company_discovery.services.evaluator import CandidateEvaluator
 from company_discovery.services.query_planner import QueryPlanner
 
@@ -25,7 +25,11 @@ class CapturingLLM:
     def generate(self, *, system_prompt: str, user_prompt: str, response_model: type[BaseModel]):
         self.prompts.append(json.loads(user_prompt))
         if response_model is QueryPlan:
-            return QueryPlan(queries=[f"query {index}" for index in range(6)], rationale="coverage")
+            query_count = self.prompts[-1]["required_query_count"]
+            return QueryPlan(
+                queries=[f"query {index}" for index in range(query_count)],
+                rationale="coverage",
+            )
         return CandidateEvaluation(
             company_name="Wrong generated name",
             domain="wrong.example",
@@ -51,9 +55,13 @@ class CapturingLLM:
 
 def test_query_planner_passes_normalized_spec_and_gap(spec: CompanySearchSpec) -> None:
     llm = CapturingLLM()
+    spec = spec.model_copy(
+        update={"external_search": ExternalSearchSpec(exa_searches=4, results_per_search=5)}
+    )
     plan = QueryPlanner(llm, query_count=6).plan(spec, remaining_gap=12)
-    assert len(plan.queries) == 6
+    assert len(plan.queries) == 4
     assert llm.prompts[0]["remaining_company_gap"] == 12
+    assert llm.prompts[0]["required_query_count"] == 4
     assert llm.prompts[0]["search_spec"]["geography"]["states"] == ["TX"]
 
 

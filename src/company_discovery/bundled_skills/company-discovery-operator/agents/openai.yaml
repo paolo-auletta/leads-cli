@@ -1,0 +1,4 @@
+interface:
+  display_name: "Company Discovery Operator"
+  short_description: "Run and explain company discovery searches"
+  default_prompt: "Use $company-discovery-operator to run this company discovery spec and summarize the results."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Leads Update Operator"
+  short_description: "Check and explain safe Leads updates"
+  default_prompt: "Use $leads-update-operator to run leads update --check, explain CLI, skill, and database changes separately, and ask before applying structural changes."

@@ -103,6 +103,15 @@
       "default": "unused_memory"
     },
     "reserve_ratio": {"type": "number", "minimum": 0, "maximum": 2, "default": 0.5},
-    "balance_mode": {"enum": ["soft", "strict", "none"], "default": "soft"}
+    "balance_mode": {"enum": ["soft", "strict", "none"], "default": "soft"},
+    "external_search": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "exa_searches": {"type": "integer", "minimum": 1, "maximum": 20, "default": 8},
+        "results_per_search": {"type": "integer", "minimum": 1, "maximum": 100, "default": 5}
+      },
+      "default": {"exa_searches": 8, "results_per_search": 5}
+    }
   }
 }

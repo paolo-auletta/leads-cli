@@ -38,7 +38,7 @@ So the install story is not “Python or curl”. It is:
 Publish the package so users end up with:
 
 ```bash
-pipx install company-discovery
+pipx install leads
 ```
 
 This should be the canonical install path under the hood on every platform.
@@ -65,7 +65,7 @@ That script should:
 - detect whether `pipx` is installed
 - install `pipx` if missing
 - ensure `pipx` is on PATH when possible
-- run `pipx install company-discovery` or `pipx upgrade company-discovery`
+- run `pipx install leads` or `pipx upgrade leads`
 - finish by launching `leads init`
 
 #### Windows
@@ -86,7 +86,7 @@ That script should do the Windows equivalent:
 For users who do not want bootstrap scripts:
 
 ```bash
-pipx install company-discovery
+pipx install leads
 leads init
 ```
 
@@ -110,16 +110,16 @@ Recommended behavior:
 
 Suggested defaults:
 
-- macOS: `~/Library/Application Support/CompanyDiscovery`
-- Linux: `~/.local/share/company-discovery`
-- Windows: `%APPDATA%\CompanyDiscovery`
+- macOS: `~/Library/Application Support/Leads`
+- Linux: `~/.local/share/leads`
+- Windows: `%APPDATA%\\Leads`
 
 Use `platformdirs` to resolve this cleanly.
 
 Inside that workspace:
 
 ```text
-CompanyDiscovery/
+Leads/
   config/
     config.toml
     secrets.toml
@@ -199,7 +199,7 @@ Example:
 Setup complete.
 
 Workspace:
-/Users/name/CompanyDiscovery
+/Users/name/Leads
 
 Installed skills:
 - Codex
@@ -489,35 +489,32 @@ This is a good fit for agent platforms because the agent becomes the safe interf
 - silently reinstall skills everywhere
 - hide big changes behind one generic success message
 
-## Open decision: DB migrations versus reset/archive
+## Decision: DB migrations versus reset/archive
 
-This is still not fully settled.
-
-We know we need a safer model than the current “delete DB and archive runs” approach, but we have
-not yet chosen the exact long-term strategy for major incompatible changes.
-
-Two realistic directions:
-
-### Option A: migrate-first
+We use a migrate-first policy for normal schema evolution.
 
 - use real schema migrations
 - back up first
 - upgrade in place when possible
 - reserve resets for exceptional cases
 
-### Option B: archive-and-rebuild for major versions
+For major incompatible changes, use archive-and-rebuild behavior instead of pretending every schema
+change can be safely transformed in place:
 
 - keep migrations for minor/additive changes
 - for big incompatible releases, archive old DB and runs clearly
 - initialize a fresh workspace state
 - keep old artifacts inspectable but separated
 
-Current leaning:
+The CLI exposes this through:
 
-- migrate-first for normal evolution
-- archive-and-rebuild only for truly incompatible major jumps
+```bash
+leads migrate --check
+leads migrate --apply
+```
 
-But this still needs a final policy decision.
+`--check` is read-only. `--apply` creates a timestamped backup before structural changes and refuses
+unknown migration paths or local schemas newer than the installed CLI.
 
 ## Open decision: how much should `update --apply` do by itself
 
@@ -564,7 +561,7 @@ That gives the CLI something concrete to compare against in `update --check`.
 
 - add `platformdirs`
 - define the fixed workspace root per OS
-- stop depending on repo-local `.company-discovery/`
+- stop depending on repo-local `.leads/`
 - add local config/secrets/runtime files
 - add `leads init`, `leads doctor`, and `leads version`
 

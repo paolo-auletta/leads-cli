@@ -202,50 +202,66 @@ class EnrichmentPipeline:
         }
         # A fresh explicit `unknown` independence result is reusable until its freshness window
         # expires; only a newly fetched unknown result should trigger corroboration in this run.
-        missing = self._missing(profile, include_unknown_independence=False)
-        if missing:
-            pages = self._fetch_pages(str(discovery["domain"]))
-            if pages:
-                summary.websites_fetched += 1
-                reporter.event("WEBSITE", f"read {len(pages)} targeted official pages")
-                trace.append({"stage": "website", "pages": [page.url for page in pages]})
-                extraction = self._extract(discovery, pages)
-                profile, new_conflicts = self._merge(profile, extraction, discovery, "official_site")
-                conflicts.extend(new_conflicts)
-                self._confirm_inherited(statuses, extraction, discovery, profile)
-
-        missing = self._missing(profile, include_unknown_independence=True)
-        if missing and self._fallback_search is not None and self._extractor is not None:
-            for query, fields in self._fallback_queries(discovery, missing):
-                results = self._fallback_search.search(
-                    query,
-                    country=str(discovery.get("country") or "US"),
-                    num_results=self._fallback_results,
-                )
-                summary.fallback_searches += 1
-                reporter.event("FALLBACK", f"narrow corroboration for {', '.join(fields)}")
-                pages = [
-                    WebsitePage(
-                        url=result.url,
-                        title=result.title,
-                        text=result.text or "",
-                        page_type="search_evidence",
-                    )
-                    for result in results
-                    if result.text or normalize_linkedin_company_url(result.url)
-                ]
-                trace.append({
-                    "stage": "fallback",
-                    "query": query,
-                    "fields": fields,
-                    "sources": [page.url for page in pages],
-                })
+        try:
+            missing = self._missing(profile, include_unknown_independence=False)
+            if missing:
+                pages = self._fetch_pages(str(discovery["domain"]))
                 if pages:
+                    summary.websites_fetched += 1
+                    reporter.event("WEBSITE", f"read {len(pages)} targeted official pages")
+                    trace.append({"stage": "website", "pages": [page.url for page in pages]})
                     extraction = self._extract(discovery, pages)
                     profile, new_conflicts = self._merge(
-                        profile, extraction, discovery, "search_corroboration"
+                        profile, extraction, discovery, "official_site"
                     )
                     conflicts.extend(new_conflicts)
+                    self._confirm_inherited(statuses, extraction, discovery, profile)
+
+            missing = self._missing(profile, include_unknown_independence=True)
+            if missing and self._fallback_search is not None and self._extractor is not None:
+                for query, fields in self._fallback_queries(discovery, missing):
+                    results = self._fallback_search.search(
+                        query,
+                        country=str(discovery.get("country") or "US"),
+                        num_results=self._fallback_results,
+                    )
+                    summary.fallback_searches += 1
+                    reporter.event("FALLBACK", f"narrow corroboration for {', '.join(fields)}")
+                    pages = [
+                        WebsitePage(
+                            url=result.url,
+                            title=result.title,
+                            text=result.text or "",
+                            page_type="search_evidence",
+                        )
+                        for result in results
+                        if result.text or normalize_linkedin_company_url(result.url)
+                    ]
+                    trace.append({
+                        "stage": "fallback",
+                        "query": query,
+                        "fields": fields,
+                        "sources": [page.url for page in pages],
+                    })
+                    if pages:
+                        extraction = self._extract(discovery, pages)
+                        profile, new_conflicts = self._merge(
+                            profile, extraction, discovery, "search_corroboration"
+                        )
+                        conflicts.extend(new_conflicts)
+        except Exception as exc:
+            if self._is_configuration_error(exc):
+                raise
+            return self._failed_item(
+                candidate_id,
+                discovery,
+                profile,
+                statuses,
+                conflicts,
+                trace,
+                exc,
+                reporter,
+            )
 
         matched_exclusions = self._matched_ownership_exclusions(
             profile, excluded_ownership_signals
@@ -277,6 +293,35 @@ class EnrichmentPipeline:
             outcome=outcome,
             conflicts=list(dict.fromkeys(conflicts)),
             review_flags=review_flags,
+            trace=trace,
+        )
+
+    def _failed_item(
+        self,
+        candidate_id: int,
+        discovery: dict[str, object],
+        profile: EnrichmentProfile,
+        statuses: dict[str, InheritedFieldStatus],
+        conflicts: list[str],
+        trace: list[dict[str, object]],
+        error: Exception,
+        reporter: EnrichmentProgressReporter,
+    ) -> EnrichmentItem:
+        message = self._error_message(error)
+        reporter.event("FAILED", message)
+        trace.append({
+            "stage": "error",
+            "error_type": type(error).__name__,
+            "message": message,
+        })
+        return EnrichmentItem(
+            company_id=candidate_id,
+            discovery=discovery,
+            enrichment=profile,
+            inherited_status=statuses,
+            outcome=EnrichmentOutcome.FAILED,
+            conflicts=list(dict.fromkeys([*conflicts, f"enrichment_failed: {message}"])),
+            review_flags=["enrichment_failed"],
             trace=trace,
         )
 
@@ -452,6 +497,22 @@ class EnrichmentPipeline:
             if "family-owned" in evidence or "family owned" in evidence:
                 observed.add("family_owned")
         return sorted(observed & excluded_signals)
+
+    @staticmethod
+    def _error_message(error: Exception) -> str:
+        message = " ".join(str(error).split())
+        if not message:
+            message = type(error).__name__
+        return message[:1000]
+
+    @staticmethod
+    def _is_configuration_error(error: Exception) -> bool:
+        message = str(error)
+        return (
+            "LLM_API_KEY is required" in message
+            or "LLM API returned HTTP 401" in message
+            or "LLM API returned HTTP 403" in message
+        )
 
     @staticmethod
     def _count_outcome(summary: EnrichmentSummary, outcome: EnrichmentOutcome) -> None:

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Company Search Spec Writer"
+  short_description: "Turn company ICP requests into valid specs"
+  default_prompt: "Use $company-search-spec-writer to turn my company targeting request into a validated discovery spec."

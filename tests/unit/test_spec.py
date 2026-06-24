@@ -145,6 +145,50 @@ def test_structured_ownership_exclusions_are_normalized() -> None:
     assert "no custom exclusions applied" not in spec.missing_constraints
 
 
+def test_external_search_defaults_and_overrides_are_validated() -> None:
+    default = CompanySearchSpec.model_validate(
+        {
+            "version": 1,
+            "count": 5,
+            "vertical": {"key": "construction", "label": "Construction"},
+        }
+    )
+    custom = CompanySearchSpec.model_validate(
+        {
+            "version": 1,
+            "count": 5,
+            "vertical": {"key": "construction", "label": "Construction"},
+            "external_search": {"exa_searches": 3, "results_per_search": 12},
+        }
+    )
+
+    assert default.external_search.exa_searches == 8
+    assert default.external_search.results_per_search == 5
+    assert custom.external_search.exa_searches == 3
+    assert custom.external_search.results_per_search == 12
+
+
+@pytest.mark.parametrize(
+    "external_search",
+    [
+        {"exa_searches": 0, "results_per_search": 5},
+        {"exa_searches": 21, "results_per_search": 5},
+        {"exa_searches": 8, "results_per_search": 0},
+        {"exa_searches": 8, "results_per_search": 101},
+    ],
+)
+def test_invalid_external_search_values_are_rejected(external_search) -> None:
+    with pytest.raises(ValidationError):
+        CompanySearchSpec.model_validate(
+            {
+                "version": 1,
+                "count": 5,
+                "vertical": {"key": "construction", "label": "Construction"},
+                "external_search": external_search,
+            }
+        )
+
+
 def test_multi_vertical_spec_has_equal_quotas_and_soft_balance_by_default() -> None:
     spec = CompanySearchSpec.model_validate(
         {

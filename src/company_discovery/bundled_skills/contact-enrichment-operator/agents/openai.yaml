@@ -1,0 +1,4 @@
+interface:
+  display_name: "Contact Enrichment Operator"
+  short_description: "Enrich discovered contacts safely with Apollo"
+  default_prompt: "Use $contact-enrichment-operator to enrich accepted contacts from a contact discovery run with Apollo."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Contact Search Spec Writer"
+  short_description: "Turn contact requests into validated JSON specs"
+  default_prompt: "Use $contact-search-spec-writer to create a contact discovery spec from my request."

@@ -1,39 +1,24 @@
 {
   "version": 1,
   "company_source": {
-    "enrichment_run_id": "enrichment-run-4",
+    "enrichment_run_id": "company-enrich-f10a41712cbb",
     "bucket": "all",
-    "domains": []
+    "domains": ["patriumhealth.com"]
   },
   "roles": [
     {
-      "key": "operations_manager",
-      "labels": ["operations manager"],
+      "key": "founder_ceo",
+      "labels": ["founder", "co-founder", "ceo", "chief executive officer"],
       "max_per_company": 1
     },
     {
-      "key": "logistics_manager",
-      "labels": ["logistics manager"],
+      "key": "practice_manager",
+      "labels": ["practice manager", "clinic manager"],
       "max_per_company": 1
     },
     {
-      "key": "transportation_manager",
-      "labels": ["transportation manager"],
-      "max_per_company": 1
-    },
-    {
-      "key": "owner",
-      "labels": ["owner"],
-      "max_per_company": 1
-    },
-    {
-      "key": "president",
-      "labels": ["president"],
-      "max_per_company": 1
-    },
-    {
-      "key": "general_manager",
-      "labels": ["general manager"],
+      "key": "office_manager",
+      "labels": ["office manager", "operations manager", "operations director"],
       "max_per_company": 1
     }
   ],

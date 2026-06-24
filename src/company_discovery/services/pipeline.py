@@ -275,7 +275,7 @@ class DiscoveryPipeline:
                     results = provider.search(
                         query,
                         country=lane.geography.country,
-                        num_results=self._results_per_query,
+                        num_results=self._results_per_search(lane),
                     )
                     self._repository.save_query_results(
                         run_id, query_id, results, provider.last_cost_dollars
@@ -570,6 +570,11 @@ class DiscoveryPipeline:
             counts[bucket] += 1
         return counts
 
+    def _results_per_search(self, spec: CompanySearchSpec) -> int:
+        if "external_search" in spec.model_fields_set:
+            return spec.external_search.results_per_search
+        return self._results_per_query
+
     def _require_query_planner(self) -> QueryPlanner:
         if self._query_planner is None:
             raise RuntimeError("external discovery requires an LLM query planner (set LLM_API_KEY)")
@@ -585,8 +590,12 @@ class DiscoveryPipeline:
             raise RuntimeError("external discovery requires Exa (set EXA_API_KEY)")
         return self._search_provider
 
-    @staticmethod
-    def _spec_summary(spec: CompanySearchSpec) -> str:
+    def _query_count(self, spec: CompanySearchSpec) -> int:
+        if self._query_planner is None:
+            return spec.external_search.exa_searches
+        return self._query_planner.query_count_for(spec)
+
+    def _spec_summary(self, spec: CompanySearchSpec) -> str:
         states = ", ".join(spec.geography.states) or "all regions"
         size = (
             "any size"
@@ -595,9 +604,13 @@ class DiscoveryPipeline:
         )
         verticals = ", ".join(vertical.label for vertical in spec.verticals)
         balancing = f"; balance {spec.balance_mode.value}" if len(spec.verticals) > 1 else ""
+        search_budget = (
+            f"; Exa {self._query_count(spec)} searches/lane x "
+            f"{self._results_per_search(spec)} results"
+        )
         return (
             f"{verticals}; {spec.geography.country} / {states}; {size}; "
-            f"target {spec.count}{balancing}"
+            f"target {spec.count}{balancing}{search_budget}"
         )
 
     @staticmethod

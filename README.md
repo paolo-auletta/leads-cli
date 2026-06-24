@@ -1,4 +1,4 @@
-# Leads Discovery
+# Leads
 
 An agent-first, memory-first company and contact research engine. Strict JSON specs drive
 deterministic memory retrieval, focused Exa searches, structured LLM evaluation, targeted
@@ -6,30 +6,86 @@ official-site enrichment, persistence, and reviewable CSV/Markdown/JSON artifact
 
 Design and rebuild notes live in [`NOTES/`](./NOTES/README.md).
 
-## Quick start
+## Install
+
+The canonical install path is `pipx`. The package is published as `leads-cli` because `leads`
+is already taken on PyPI, but it still installs the `leads` command. The installer scripts are
+thin convenience wrappers around `pipx install leads-cli` or `pipx upgrade leads-cli`, followed
+by `leads init`.
+
+### macOS and Linux
 
 ```bash
-python -m venv .venv
-.venv/bin/pip install -e '.[dev]'
-cp examples/company_search_spec.json company_search_spec.json
-export EXA_API_KEY=...
-export LLM_API_KEY=...
-export APOLLO_API_KEY=...
-export APOLLO_WEBHOOK_URL=https://your-public-host.example/apollo-webhook
-leads companies discover --spec company_search_spec.json
+curl -fsSL https://raw.githubusercontent.com/paoloauletta/leads/main/install.sh | bash
 ```
 
-Runtime data defaults to `.company-discovery/`. Override it with
-`COMPANY_DISCOVERY_HOME=/path/to/data`.
+### Windows PowerShell
+
+```powershell
+irm https://raw.githubusercontent.com/paoloauletta/leads/main/install.ps1 | iex
+```
+
+### Direct pipx install
+
+```bash
+pipx install leads-cli
+leads init
+```
+
+Use `LEADS_SKIP_INIT=1` with either installer when you want to install first and run onboarding
+later.
+
+## Onboarding
+
+Run:
+
+```bash
+leads init
+```
+
+The wizard creates one local workspace, stores config and secrets, initializes the SQLite database,
+and installs bundled skills into the agent targets you choose, such as Codex, Claude Code, or
+OpenCode. After setup, use one of those agents to create a spec, run discovery, and summarize the
+selected leads.
+
+Runtime data defaults to the OS-appropriate Leads application data folder. Override it with
+`LEADS_HOME=/path/to/data` when needed.
 
 `LLM_RESPONSE_FORMAT=auto` uses strict JSON Schema with OpenAI and validated JSON Object mode
 with DeepSeek or other compatible providers. Override it only when a provider documents support
 for a different mode.
 
+## Workspace Layout
+
+`leads init` creates one workspace root with these top-level directories:
+
+```text
+backups/
+config/
+data/
+logs/
+runs/
+skills/
+specs/
+```
+
+`config/` contains local settings, secrets, and runtime metadata. `data/company_memory.db` is the
+SQLite memory database. `specs/companies/` and `specs/contacts/` are where agent-created specs
+belong. `runs/` contains discovery and enrichment artifacts. `backups/` stores migration and reset
+backups. `skills/` stores bundled skill copies and install metadata. `logs/leads.log` is a CLI
+diagnostic log for troubleshooting; it is not lead evidence or a run artifact.
+
 ## Commands
 
 ```bash
-.venv/bin/leads init-db
+leads init
+leads doctor
+leads init-db
+leads version
+leads update --check
+leads migrate --check
+leads config show
+leads skills status
 leads companies discover --spec company_search_spec.json
 leads companies enrich DISCOVERY_RUN_ID
 leads companies show-run RUN_ID
@@ -54,7 +110,25 @@ leads contacts export-enrichment CONTACT_ENRICHMENT_RUN_ID
 asks before resetting it. An accepted reset moves the existing `runs/` directory to a timestamped
 archive such as `runs-previousdb-20260622T184500Z/`, then creates a new empty `runs/` directory.
 
+`leads migrate --check` is read-only. `leads migrate --apply` creates a timestamped backup before
+supported structural schema changes and refuses unknown migration paths.
+
 Use `--verbose` on `discover` to print generated queries and candidate-level decisions.
+
+## Development Setup
+
+```bash
+python -m venv .venv
+.venv/bin/pip install -e '.[dev]'
+.venv/bin/leads init
+```
+
+For a local smoke test, create or copy a company spec, configure provider keys during onboarding,
+then run:
+
+```bash
+leads companies discover --spec company_search_spec.json
+```
 
 ## Multiple verticals
 

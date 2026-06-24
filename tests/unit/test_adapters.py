@@ -89,7 +89,10 @@ def test_llm_adapter_retries_invalid_structured_output() -> None:
         return httpx.Response(200, json={"choices": [{"message": {"content": content}}]})
 
     client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://llm.test")
-    adapter = OpenAICompatibleLLM(Settings(llm_api_key="test"), client=client)
+    adapter = OpenAICompatibleLLM(
+        Settings(llm_api_key="test", llm_base_url="https://llm.test"),
+        client=client,
+    )
     result = adapter.generate(system_prompt="system", user_prompt="user", response_model=QueryPlan)
     assert isinstance(result, QueryPlan)
     assert calls == 2

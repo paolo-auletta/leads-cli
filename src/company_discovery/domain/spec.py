@@ -164,6 +164,11 @@ class ExcludeSpec(StrictModel):
         return list(dict.fromkeys(value.strip().lower() for value in values if value.strip()))
 
 
+class ExternalSearchSpec(StrictModel):
+    exa_searches: int = Field(default=8, ge=1, le=20)
+    results_per_search: int = Field(default=5, ge=1, le=100)
+
+
 class CompanySearchSpec(StrictModel):
     version: Literal[1]
     count: int = Field(ge=1, le=1000)
@@ -178,6 +183,7 @@ class CompanySearchSpec(StrictModel):
     novelty_mode: NoveltyMode = NoveltyMode.UNUSED_MEMORY
     reserve_ratio: float = Field(default=0.5, ge=0, le=2)
     balance_mode: BalanceMode = BalanceMode.SOFT
+    external_search: ExternalSearchSpec = Field(default_factory=ExternalSearchSpec)
 
     @field_validator("verticals", mode="before")
     @classmethod
