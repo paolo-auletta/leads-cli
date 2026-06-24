@@ -379,8 +379,8 @@ def test_update_check_reports_machine_readable_plan(tmp_path, monkeypatch) -> No
 
     assert result.exit_code == 0
     assert '"product": "leads"' in result.output
-    assert '"installed_cli_version": "0.1.0"' in result.output
-    assert '"target_skill_bundle_version": "2026.06.1"' in result.output
+    assert '"latest_cli_version": "0.1.1"' in result.output
+    assert '"target_skill_bundle_version": "2026.06.2"' in result.output
     assert '"migration_required": false' in result.output
     assert '"risk_summary"' in result.output
 
