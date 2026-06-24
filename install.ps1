@@ -4,7 +4,7 @@ $PackageName = if ($env:LEADS_PACKAGE_NAME) { $env:LEADS_PACKAGE_NAME } else { "
 $SkipInit = $env:LEADS_SKIP_INIT -eq "1"
 $LeadsPythonVersion = if ($env:LEADS_PYTHON_VERSION) { $env:LEADS_PYTHON_VERSION } else { "3.13" }
 $LeadsPythonExe = $null
-$InstallerRevision = "2026-06-24-win-arm64-x64-python-bootstrap"
+$InstallerRevision = "2026-06-24-win-arm64-x64-python-bootstrap-3"
 
 function Test-Command {
     param([string]$Name)
@@ -87,27 +87,39 @@ function Invoke-NativeQuiet {
 function Get-PythonExecutable {
     param(
         [string]$Version,
-        [string]$RequiredMachine = ""
+        [string]$RequiredPlatform = ""
     )
 
-    $required = $RequiredMachine.ToUpperInvariant()
-    $probe = "import platform, sys; ok = sys.version_info[:2] == tuple(map(int, '$Version'.split('.'))); machine = platform.machine().upper(); required = '$required'; ok = ok and (not required or machine == required); print(sys.executable) if ok else None; raise SystemExit(0 if ok else 1)"
+    $required = $RequiredPlatform.ToLowerInvariant()
+    $probe = "import sys, sysconfig; ok = sys.version_info[:2] == tuple(map(int, '$Version'.split('.'))); platform_name = sysconfig.get_platform().lower(); required = '$required'; ok = ok and (not required or platform_name == required); print(sys.executable) if ok else None; raise SystemExit(0 if ok else 1)"
     $compactVersion = $Version -replace "\.", ""
 
     $pathCandidates = @()
+    $roots = @()
     if ($env:LOCALAPPDATA) {
-        if ($RequiredMachine -eq "AMD64") {
-            $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion\python.exe"
-        }
-        $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion-arm64\python.exe"
-        $pathCandidates += Join-Path $env:LOCALAPPDATA "Programs\Python\Python$compactVersion\python.exe"
+        $roots += Join-Path $env:LOCALAPPDATA "Programs\Python"
+    }
+    if ($env:ProgramW6432) {
+        $roots += $env:ProgramW6432
     }
     if ($env:ProgramFiles) {
-        if ($RequiredMachine -eq "AMD64") {
-            $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion\python.exe"
+        $roots += $env:ProgramFiles
+    }
+    if (${env:ProgramFiles(x86)}) {
+        $roots += ${env:ProgramFiles(x86)}
+    }
+
+    foreach ($root in ($roots | Select-Object -Unique)) {
+        if ($RequiredPlatform -eq "win-amd64") {
+            $pathCandidates += Join-Path $root "Python$compactVersion\python.exe"
         }
-        $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion-arm64\python.exe"
-        $pathCandidates += Join-Path $env:ProgramFiles "Python$compactVersion\python.exe"
+        $pathCandidates += Join-Path $root "Python$compactVersion-arm64\python.exe"
+        $pathCandidates += Join-Path $root "Python$compactVersion\python.exe"
+        if (Test-Path $root) {
+            $pathCandidates += Get-ChildItem -Path $root -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.Name -like "Python$compactVersion*" } |
+                ForEach-Object { Join-Path $_.FullName "python.exe" }
+        }
     }
 
     foreach ($path in ($pathCandidates | Select-Object -Unique)) {
@@ -121,7 +133,7 @@ function Get-PythonExecutable {
     }
 
     $candidates = @()
-    if ($RequiredMachine -eq "AMD64") {
+    if ($RequiredPlatform -eq "win-amd64") {
         $candidates += @{ Command = "py"; Arguments = @("-$Version-64", "-c", $probe) }
     }
     $candidates += @(
@@ -172,8 +184,8 @@ function Install-LeadsPython {
         throw "winget could not install Python $Version. Install Python $Version, then rerun this installer."
     }
 
-    $requiredMachine = if ($Architecture -eq "x64") { "AMD64" } else { "" }
-    $python = Get-PythonExecutable $Version $requiredMachine
+    $requiredPlatform = if ($Architecture -eq "x64") { "win-amd64" } else { "" }
+    $python = Get-PythonExecutable $Version $requiredPlatform
     if (-not $python) {
         throw "Python $Version was installed, but this shell cannot find it yet. Open a new PowerShell window and rerun this installer."
     }
@@ -182,8 +194,8 @@ function Install-LeadsPython {
 
 function Get-PipxPythonArgs {
     if (-not $script:LeadsPythonExe) {
-        $requiredMachine = if (Test-WindowsArm64) { "AMD64" } else { "" }
-        $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion $requiredMachine
+        $requiredPlatform = if (Test-WindowsArm64) { "win-amd64" } else { "" }
+        $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion $requiredPlatform
     }
 
     if (-not $script:LeadsPythonExe -and (Test-WindowsArm64)) {
@@ -217,7 +229,7 @@ function Find-Leads {
 
 Write-Host "Installing $PackageName with pipx using Python $LeadsPythonVersion..."
 if (Test-WindowsArm64) {
-    $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion "AMD64"
+    $script:LeadsPythonExe = Get-PythonExecutable $LeadsPythonVersion "win-amd64"
     if (-not $script:LeadsPythonExe) {
         $script:LeadsPythonExe = Install-LeadsPython $LeadsPythonVersion "x64"
     }

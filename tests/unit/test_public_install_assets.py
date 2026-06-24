@@ -32,10 +32,12 @@ def test_windows_installer_bootstraps_pipx_and_runs_onboarding() -> None:
     assert "Invoke-NativeQuiet" in content
     assert "Install-LeadsPython" in content
     assert "& winget @wingetArgs" in content
-    assert '"AMD64"' in content
+    assert "sysconfig.get_platform" in content
+    assert '"win-amd64"' in content
     assert '"x64"' in content
     assert "--architecture" in content
     assert "Out-Host" in content
+    assert "ProgramW6432" in content
     assert "Python$compactVersion" in content
     assert '-and -not (Test-WindowsArm64)' in content
     assert "throw \"pipx command failed" in content
