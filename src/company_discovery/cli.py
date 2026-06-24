@@ -19,7 +19,7 @@ from rich.text import Text
 
 from company_discovery.adapters.exa import ExaClient
 from company_discovery.adapters.apollo import ApolloClient
-from company_discovery.adapters.llm import OpenAICompatibleLLM
+from company_discovery.adapters.llm import build_llm
 from company_discovery.adapters.website import WebsiteClient
 from company_discovery.db.enrichment_repository import (
     EnrichmentRepository,
@@ -137,18 +137,16 @@ LLM_PROVIDER_CHOICES = [
     {
         "key": "anthropic",
         "label": "Anthropic Claude",
-        "base_url": "",
-        "supported": False,
-        "disabled": "native Anthropic API adapter is not implemented yet",
-        "models": [],
+        "base_url": "https://api.anthropic.com/v1",
+        "supported": True,
+        "models": ["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5"],
     },
     {
         "key": "google-gemini",
         "label": "Google Gemini",
-        "base_url": "",
-        "supported": False,
-        "disabled": "native Gemini API adapter is not implemented yet",
-        "models": [],
+        "base_url": "https://generativelanguage.googleapis.com/v1beta",
+        "supported": True,
+        "models": ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"],
     },
     {
         "key": "custom",
@@ -321,7 +319,7 @@ def build_runtime(settings: Settings) -> tuple[Database, DiscoveryRepository, Di
 
     llm = None
     if settings.llm_api_key:
-        llm = OpenAICompatibleLLM(settings)
+        llm = build_llm(settings)
         resources.append(llm)
     exa = None
     if settings.exa_api_key:
@@ -348,7 +346,7 @@ def build_enrichment_runtime(
     repository = EnrichmentRepository(database)
     resources: list[object] = []
 
-    llm = OpenAICompatibleLLM(settings) if settings.llm_api_key else None
+    llm = build_llm(settings) if settings.llm_api_key else None
     if llm:
         resources.append(llm)
     exa = ExaClient(settings) if settings.exa_api_key else None

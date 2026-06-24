@@ -51,9 +51,10 @@ selected leads.
 Runtime data defaults to the OS-appropriate Leads application data folder. Override it with
 `LEADS_HOME=/path/to/data` when needed.
 
-`LLM_RESPONSE_FORMAT=auto` uses strict JSON Schema with OpenAI and validated JSON Object mode
-with DeepSeek or other compatible providers. Override it only when a provider documents support
-for a different mode.
+Leads supports OpenAI-compatible providers, Anthropic Claude, and Google Gemini from onboarding.
+`LLM_RESPONSE_FORMAT=auto` uses strict JSON Schema with OpenAI, native structured-output APIs with
+Anthropic/Gemini, and validated JSON Object mode with DeepSeek or other compatible providers.
+Override it only when a provider documents support for a different mode.
 
 ## Workspace Layout
 

@@ -296,11 +296,18 @@ def test_init_provider_choices_match_supported_llm_adapter_surface() -> None:
 
     assert providers["openai"]["supported"] is True
     assert providers["deepseek"]["supported"] is True
+    assert providers["anthropic"]["supported"] is True
+    assert providers["google-gemini"]["supported"] is True
     assert providers["custom"]["supported"] is True
-    assert providers["anthropic"]["supported"] is False
-    assert providers["google-gemini"]["supported"] is False
     assert "gpt-5-mini" in providers["openai"]["models"]
     assert "deepseek-chat" in providers["deepseek"]["models"]
+    assert "claude-sonnet-4-6" in providers["anthropic"]["models"]
+    assert "gemini-3.5-flash" in providers["google-gemini"]["models"]
+
+
+def test_provider_base_urls_match_native_supported_apis() -> None:
+    assert cli._provider_base_url("anthropic") == "https://api.anthropic.com/v1"
+    assert cli._provider_base_url("google-gemini") == "https://generativelanguage.googleapis.com/v1beta"
 
 
 def test_workspace_choices_show_actual_paths() -> None:

@@ -5,7 +5,7 @@ import json
 import httpx
 
 from company_discovery.adapters.exa import ExaClient
-from company_discovery.adapters.llm import OpenAICompatibleLLM
+from company_discovery.adapters.llm import AnthropicLLM, GeminiLLM, OpenAICompatibleLLM, build_llm
 from company_discovery.adapters.website import WebsiteClient
 from company_discovery.domain.models import QueryPlan
 from company_discovery.settings import Settings
@@ -169,6 +169,108 @@ def test_deepseek_uses_json_object_response_format() -> None:
     adapter.generate(system_prompt="system", user_prompt="user", response_model=QueryPlan)
     assert captured["response_format"] == {"type": "json_object"}
     assert "Return JSON only" in captured["messages"][0]["content"]
+
+
+def test_llm_factory_selects_native_provider_adapters() -> None:
+    assert isinstance(
+        build_llm(Settings(llm_provider="anthropic", llm_api_key="test")),
+        AnthropicLLM,
+    )
+    assert isinstance(
+        build_llm(Settings(llm_provider="google-gemini", llm_api_key="test")),
+        GeminiLLM,
+    )
+    assert isinstance(
+        build_llm(Settings(llm_provider="openai", llm_api_key="test")),
+        OpenAICompatibleLLM,
+    )
+
+
+def test_anthropic_adapter_uses_messages_structured_outputs() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "content": [
+                    {
+                        "type": "text",
+                        "text": json.dumps(
+                            {
+                                "queries": [f"query {index}" for index in range(6)],
+                                "rationale": "ok",
+                            }
+                        ),
+                    }
+                ]
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://anthropic.test")
+    adapter = AnthropicLLM(
+        Settings(
+            llm_provider="anthropic",
+            llm_api_key="test",
+            llm_base_url="https://api.anthropic.com/v1",
+            llm_model="claude-sonnet-4-6",
+        ),
+        client=client,
+    )
+
+    result = adapter.generate(system_prompt="system", user_prompt="user", response_model=QueryPlan)
+
+    assert isinstance(result, QueryPlan)
+    assert captured["path"] == "/messages"
+    body = captured["body"]
+    assert body["model"] == "claude-sonnet-4-6"
+    assert body["system"] == "system"
+    assert body["messages"] == [{"role": "user", "content": "user"}]
+    assert body["output_config"]["format"]["type"] == "json_schema"
+    assert body["output_config"]["format"]["schema"]["type"] == "object"
+
+
+def test_gemini_adapter_uses_interactions_structured_outputs() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["path"] = request.url.path
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "output_text": json.dumps(
+                    {
+                        "queries": [f"query {index}" for index in range(6)],
+                        "rationale": "ok",
+                    }
+                )
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler), base_url="https://gemini.test")
+    adapter = GeminiLLM(
+        Settings(
+            llm_provider="google-gemini",
+            llm_api_key="test",
+            llm_base_url="https://generativelanguage.googleapis.com/v1beta",
+            llm_model="gemini-3.5-flash",
+        ),
+        client=client,
+    )
+
+    result = adapter.generate(system_prompt="system", user_prompt="user", response_model=QueryPlan)
+
+    assert isinstance(result, QueryPlan)
+    assert captured["path"] == "/interactions"
+    body = captured["body"]
+    assert body["model"] == "gemini-3.5-flash"
+    assert body["input"] == "system\n\nuser"
+    assert body["response_format"]["type"] == "text"
+    assert body["response_format"]["mime_type"] == "application/json"
+    assert body["response_format"]["schema"]["type"] == "object"
 
 
 def test_llm_adapter_surfaces_model_refusal() -> None:
