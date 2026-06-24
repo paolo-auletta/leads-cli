@@ -26,6 +26,7 @@ def test_windows_installer_bootstraps_pipx_and_runs_onboarding() -> None:
     content = (ROOT / "install.ps1").read_text(encoding="utf-8")
 
     assert '"3.13"' in content
+    assert "win-arm64-python-bootstrap" in content
     assert "--fetch-python" in content
     assert "Test-WindowsArm64" in content
     assert "Invoke-NativeQuiet" in content

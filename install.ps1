@@ -4,6 +4,7 @@ $PackageName = if ($env:LEADS_PACKAGE_NAME) { $env:LEADS_PACKAGE_NAME } else { "
 $SkipInit = $env:LEADS_SKIP_INIT -eq "1"
 $LeadsPythonVersion = if ($env:LEADS_PYTHON_VERSION) { $env:LEADS_PYTHON_VERSION } else { "3.13" }
 $LeadsPythonExe = $null
+$InstallerRevision = "2026-06-24-win-arm64-python-bootstrap-2"
 
 function Test-Command {
     param([string]$Name)
