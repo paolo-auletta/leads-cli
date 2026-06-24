@@ -20,6 +20,7 @@ def isolated_default_workspace_root(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.delenv("LEADS_HOME", raising=False)
     monkeypatch.delenv("COMPANY_DISCOVERY_HOME", raising=False)
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("UPDATE_MANIFEST_URL", "")
     monkeypatch.setattr(runtime, "default_workspace_root", lambda: default_root)
     monkeypatch.setattr(settings_module, "default_workspace_root", lambda: default_root)
     monkeypatch.setattr(cli, "default_workspace_root", lambda: default_root)

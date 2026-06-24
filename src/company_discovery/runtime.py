@@ -16,7 +16,7 @@ from platformdirs import user_data_dir
 PRODUCT_NAME = "leads"
 DISPLAY_NAME = "Leads"
 SCHEMA_VERSION = 1
-SKILL_BUNDLE_VERSION = "2026.06.2"
+SKILL_BUNDLE_VERSION = "2026.06.3"
 LOGGER_NAME = "company_discovery"
 WORKSPACE_POINTER_FILE = "workspace.json"
 
@@ -38,6 +38,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
             "base_url": "https://api.apollo.io",
             "webhook_url": "",
         },
+    },
+    "update": {
+        "manifest_url": (
+            "https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/"
+            "src/company_discovery/release_manifest.json"
+        ),
+        "timeout_seconds": 10,
     },
 }
 
@@ -238,6 +245,10 @@ def load_local_settings(root: Path) -> dict[str, Any]:
     _copy(values, "apollo_base_url", apollo.get("base_url"))
     _copy(values, "apollo_webhook_url", _blank_to_none(apollo.get("webhook_url")))
     _copy(values, "apollo_api_key", _blank_to_none(apollo_secrets.get("api_key")))
+
+    update = config.get("update", {})
+    _copy(values, "update_manifest_url", _blank_to_none(update.get("manifest_url")))
+    _copy(values, "update_timeout_seconds", update.get("timeout_seconds"))
     return values
 
 

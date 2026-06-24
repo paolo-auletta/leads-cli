@@ -22,6 +22,10 @@ class MigrationError(RuntimeError):
     """Raised when a requested database migration cannot be applied safely."""
 
 
+class WorkspaceSchemaBlockedError(MigrationError):
+    """Raised when normal DB commands must stop until migration is handled."""
+
+
 @dataclass(frozen=True)
 class MigrationStatus:
     product: str
@@ -122,6 +126,26 @@ def apply_migrations(settings: Settings) -> dict[str, object]:
         "applied_at": applied_at,
         "final_schema_version": status.target_schema_version,
     }
+
+
+def ensure_workspace_schema_current(settings: Settings) -> None:
+    status = migration_status(settings)
+    if status.current_schema_version == status.target_schema_version:
+        return
+    if status.current_schema_version < status.target_schema_version:
+        raise WorkspaceSchemaBlockedError(
+            "This workspace database needs a migration before running data commands.\n"
+            f"Workspace: {status.workspace}\n"
+            f"Schema: {status.current_schema_version} -> {status.target_schema_version}\n\n"
+            "Run `leads update --check`, then `leads migrate --check`, and only run "
+            "`leads migrate --apply` after reviewing the backup/migration plan."
+        )
+    raise WorkspaceSchemaBlockedError(
+        "This workspace database is newer than this installed CLI can safely use.\n"
+        f"Workspace: {status.workspace}\n"
+        f"Schema: {status.current_schema_version} > {status.target_schema_version}\n\n"
+        "Upgrade `leads-cli` before running discovery, enrichment, export, or inspect commands."
+    )
 
 
 def create_database_backup(paths: WorkspacePaths, database_path: Path) -> Path:

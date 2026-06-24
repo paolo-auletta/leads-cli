@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "leads-cli"
-version = "0.1.1"
+version = "0.1.2"
 description = "Agent-first company and contact discovery for outbound lead generation."
 readme = "README.md"
 requires-python = ">=3.11"

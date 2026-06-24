@@ -31,14 +31,20 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
 
 1. Run `leads update --check` first.
 2. Prefer `leads update --check --json` when you need exact fields for an explanation.
-3. Report CLI, skill bundle, and database schema changes separately.
-4. Explain whether a backup or migration is required.
-5. If migration is required, run `leads migrate --check` or `leads migrate --check --json` and
+3. Report the manifest source. `remote` means the check found the latest published release
+   manifest; `bundled` means it fell back to the manifest inside the currently installed package.
+4. Report CLI, skill bundle, and database schema changes separately.
+5. If `cli_update_required` is true, tell the user to upgrade the package outside the running CLI,
+   normally with `pipx upgrade leads-cli`, then rerun `leads update --check`.
+6. Explain whether a backup or migration is required.
+7. If migration is required, run `leads migrate --check` or `leads migrate --check --json` and
    explain the migration action, backup path behavior, and risk summary.
-6. Ask the user before applying structural database changes.
-7. Only run `leads migrate --apply` after explicit user approval. Use a large tool-window timeout,
-   around 10 minutes, so backup and migration work can finish.
-8. Do not assume a migration is harmless just because the command exists.
+8. Ask the user before applying structural database changes.
+9. After the CLI package is current, use `leads update --apply` to apply local migrations and
+   reinstall previously installed skill bundles. Use `--yes` only after explicit approval.
+10. Use a large tool-window timeout, around 10 minutes, so package upgrades, backups, migrations,
+   and skill reinstalls can finish.
+11. Do not assume a migration is harmless just because the command exists.
 
 ## Interpretation
 
@@ -46,11 +52,16 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
 - `skills_update_required` means bundled agent skills should be reinstalled or synced.
 - `migration_required` means the local schema and release manifest disagree, or the release
   explicitly requires migration.
+- `migration_supported_by_installed_cli` false means the user must upgrade `leads-cli` before
+  running migration apply; the current binary does not contain the needed migration code.
 - `backup_required` means the update plan expects a database backup before structural work.
 - `confirmation_required` means the agent should pause and get explicit user approval.
 - `leads migrate --check` is read-only and reports the local DB migration action.
 - `leads migrate --apply` creates a timestamped backup before supported structural changes and
   refuses unknown migration paths.
+- After an external package upgrade, data commands may refuse to run until migration is handled.
+  That is intentional; use `leads update --check`, `leads migrate --check`, and
+  `leads update --apply`.
 
 ## Guardrails
 

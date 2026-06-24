@@ -62,6 +62,12 @@ class Settings(BaseSettings):
     apollo_poll_interval_seconds: float = Field(default=2.0, ge=0.1, le=60)
     apollo_poll_timeout_seconds: float = Field(default=120.0, ge=1, le=1800)
 
+    update_manifest_url: str | None = (
+        "https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/"
+        "src/company_discovery/release_manifest.json"
+    )
+    update_timeout_seconds: float = Field(default=10.0, ge=1, le=120)
+
     @property
     def company_discovery_home(self) -> Path:
         """Backward-compatible internal alias for the leads workspace root."""

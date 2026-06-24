@@ -69,7 +69,13 @@ from company_discovery.services.progress import ProgressReporter
 from company_discovery.services.query_planner import QueryPlanner
 from company_discovery.settings import Settings, get_settings
 from company_discovery import __distribution_name__, __version__
-from company_discovery.migrations import MigrationError, apply_migrations, migration_status
+from company_discovery.migrations import (
+    MigrationError,
+    WorkspaceSchemaBlockedError,
+    apply_migrations,
+    ensure_workspace_schema_current,
+    migration_status,
+)
 from company_discovery.runtime import (
     SCHEMA_VERSION,
     SKILL_BUNDLE_VERSION,
@@ -311,6 +317,7 @@ class RichContactEnrichmentProgressReporter(ContactEnrichmentProgressReporter):
         console.print(f"\n  [bright_green]OUTPUT[/bright_green] saved {run_id}")
 
 def build_runtime(settings: Settings) -> tuple[Database, DiscoveryRepository, DiscoveryPipeline, list[object]]:
+    _ensure_schema_ready(settings)
     settings.prepare_directories()
     database = Database(settings.resolved_database_url)
     database.create_schema()
@@ -340,6 +347,7 @@ def build_runtime(settings: Settings) -> tuple[Database, DiscoveryRepository, Di
 def build_enrichment_runtime(
     settings: Settings,
 ) -> tuple[Database, EnrichmentRepository, EnrichmentPipeline, list[object]]:
+    _ensure_schema_ready(settings)
     settings.prepare_directories()
     database = Database(settings.resolved_database_url)
     database.create_schema()
@@ -372,13 +380,14 @@ def build_enrichment_runtime(
 def build_contact_runtime(
     settings: Settings,
 ) -> tuple[Database, ContactDiscoveryRepository, ContactDiscoveryPipeline, list[object]]:
+    _ensure_schema_ready(settings)
     settings.prepare_directories()
     database = Database(settings.resolved_database_url)
     database.create_schema()
     repository = ContactDiscoveryRepository(database)
     resources: list[object] = []
 
-    llm = OpenAICompatibleLLM(settings) if settings.llm_api_key else None
+    llm = build_llm(settings) if settings.llm_api_key else None
     if llm:
         resources.append(llm)
     exa = ExaClient(settings) if settings.exa_api_key else None
@@ -402,6 +411,7 @@ def build_contact_enrichment_runtime(
     ContactEnrichmentPipeline,
     list[object],
 ]:
+    _ensure_schema_ready(settings)
     settings.prepare_directories()
     database = Database(settings.resolved_database_url)
     database.create_schema()
@@ -421,6 +431,7 @@ def build_contact_enrichment_runtime(
 def build_contact_enrichment_repository(
     settings: Settings,
 ) -> tuple[Database, ContactEnrichmentRepository]:
+    _ensure_schema_ready(settings)
     settings.prepare_directories()
     database = Database(settings.resolved_database_url)
     database.create_schema()
@@ -433,6 +444,14 @@ def close_runtime(database: Database, resources: list[object]) -> None:
         if close:
             close()
     database.dispose()
+
+
+def _ensure_schema_ready(settings: Settings) -> None:
+    try:
+        ensure_workspace_schema_current(settings)
+    except WorkspaceSchemaBlockedError as exc:
+        console.print(Panel(str(exc), title="Workspace migration required", border_style="red"))
+        raise typer.Exit(2) from exc
 
 
 def _next_runs_archive_path(home: Path) -> Path:
@@ -745,59 +764,38 @@ def update(
     check: Annotated[bool, typer.Option("--check", help="Inspect update requirements.")] = False,
     apply_update: Annotated[
         bool,
-        typer.Option("--apply", help="Reserved for the later safe apply workflow."),
+        typer.Option("--apply", help="Apply workspace-local update steps after reviewing the plan."),
     ] = False,
     json_output: Annotated[bool, typer.Option("--json", help="Print machine-readable JSON.")] = False,
+    remote: Annotated[
+        bool,
+        typer.Option("--remote/--no-remote", help="Check the remote release manifest when available."),
+    ] = True,
+    yes: Annotated[bool, typer.Option("--yes", "-y", help="Skip interactive confirmations.")] = False,
 ) -> None:
     """Guide or inspect the safe update workflow."""
     settings = get_settings()
     if check:
-        plan = build_update_check(settings)
+        plan = build_update_check(settings, remote=remote)
         if json_output:
             console.print_json(data=plan)
             return
-        table = Table(title="leads update check", show_header=True, header_style="bold")
-        table.add_column("Area")
-        table.add_column("Installed")
-        table.add_column("Target")
-        table.add_column("Action")
-        table.add_row(
-            "CLI",
-            plan["installed_cli_version"],
-            plan["latest_cli_version"],
-            "upgrade" if plan["cli_update_required"] else "none",
-        )
-        table.add_row(
-            "Skills",
-            str(plan["installed_skill_bundle_version"] or "not installed"),
-            plan["target_skill_bundle_version"],
-            "sync" if plan["skills_update_required"] else "none",
-        )
-        table.add_row(
-            "DB schema",
-            str(plan["current_db_schema_version"]),
-            str(plan["target_db_schema_version"]),
-            "migrate" if plan["migration_required"] else "none",
-        )
-        console.print(table)
-        console.print(f"Backup required: [bold]{'yes' if plan['backup_required'] else 'no'}[/bold]")
-        console.print(
-            f"User confirmation required: [bold]{'yes' if plan['confirmation_required'] else 'no'}[/bold]"
-        )
-        console.print(f"Risk summary: {plan['risk_summary']}")
+        _render_update_plan(plan)
         return
 
     if apply_update:
+        result = _apply_update(settings, remote=remote, yes=yes)
+        if json_output:
+            console.print_json(data=result)
+            return
         console.print(
             Panel(
-                "The apply workflow is intentionally reserved for the migration and public install "
-                "phases. Run `leads update --check` first and review the plan before applying any "
-                "structural changes.",
-                title="Update apply not enabled yet",
-                border_style="yellow",
+                "\n".join(f"{key}: {value}" for key, value in result.items()),
+                title="Update apply complete",
+                border_style="bright_green",
             )
         )
-        raise typer.Exit(2)
+        return
 
     console.print(
         Panel(
@@ -807,14 +805,110 @@ def update(
             "- skills may need to be updated\n"
             "- the database may need migration\n"
             "- your agent can inspect the update plan and explain what will happen before applying changes\n\n"
-            "Suggested prompt:\n"
-            '"Please update my leads tool safely. First run `leads update --check`, explain whether '
-            "the CLI, skills, or database need changes, tell me what backups or migrations will "
-            'happen, and ask for confirmation before applying anything structural."',
+            "Suggested flow:\n"
+            "1. `leads update --check`\n"
+            "2. If CLI upgrade is needed: `pipx upgrade leads-cli`\n"
+            "3. `leads update --check`\n"
+            "4. ask for confirmation before structural changes, then run "
+            "`leads update --apply` after reviewing migrations/backups/skill syncs.",
             title="Safe leads update",
             border_style="bright_cyan",
         )
     )
+
+
+def _render_update_plan(plan: dict[str, object]) -> None:
+    table = Table(title="leads update check", show_header=True, header_style="bold")
+    table.add_column("Area")
+    table.add_column("Installed")
+    table.add_column("Target")
+    table.add_column("Action")
+    table.add_row(
+        "CLI",
+        str(plan["installed_cli_version"]),
+        str(plan["latest_cli_version"]),
+        "upgrade" if plan["cli_update_required"] else "none",
+    )
+    table.add_row(
+        "Skills",
+        str(plan["installed_skill_bundle_version"] or "not installed"),
+        str(plan["target_skill_bundle_version"]),
+        "sync" if plan["skills_update_required"] else "none",
+    )
+    table.add_row(
+        "DB schema",
+        str(plan["current_db_schema_version"]),
+        str(plan["target_db_schema_version"]),
+        "migrate" if plan["migration_required"] else "none",
+    )
+    console.print(table)
+    console.print(f"Manifest source: [bold]{plan['manifest_source']}[/bold]")
+    if plan.get("manifest_error"):
+        console.print(f"[yellow]Remote manifest unavailable:[/yellow] {plan['manifest_error']}")
+    console.print(f"Backup required: [bold]{'yes' if plan['backup_required'] else 'no'}[/bold]")
+    console.print(
+        f"User confirmation required: [bold]{'yes' if plan['confirmation_required'] else 'no'}[/bold]"
+    )
+    console.print(f"Risk summary: {plan['risk_summary']}")
+    next_steps = plan.get("next_steps")
+    if isinstance(next_steps, list):
+        console.print("[bold]Next steps[/bold]")
+        for step in next_steps:
+            console.print(f"  - {step}")
+
+
+def _apply_update(settings: Settings, *, remote: bool, yes: bool) -> dict[str, object]:
+    plan = build_update_check(settings, remote=remote)
+    if plan["cli_update_required"]:
+        console.print(
+            Panel(
+                "A newer CLI package is available. Upgrade the package first, then rerun "
+                "`leads update --check` and `leads update --apply`.\n\n"
+                "Recommended command:\n"
+                "pipx upgrade leads-cli",
+                title="CLI upgrade required",
+                border_style="yellow",
+            )
+        )
+        raise typer.Exit(2)
+
+    migration_result: dict[str, object] | None = None
+    if plan["migration_required"]:
+        status = migration_status(settings)
+        if not status.can_apply:
+            _render_migration_status(status.as_dict(), json_output=False)
+            raise typer.Exit(2)
+        if status.backup_required and not yes:
+            confirmed = typer.confirm(
+                "This update will create a timestamped database backup before migrating. Continue?",
+                default=False,
+            )
+            if not confirmed:
+                console.print("Update cancelled; nothing was changed.")
+                raise typer.Exit(1)
+        migration_result = apply_migrations(settings)
+
+    skills_result: dict[str, object] | None = None
+    if plan["skills_update_required"]:
+        selected = installed_target_keys(settings.company_discovery_home)
+        if selected:
+            skills_result = install_skills(settings.company_discovery_home, selected)
+        else:
+            skills_result = {"installs": [], "message": "No previous skill installs found."}
+
+    final_plan = build_update_check(settings, remote=False)
+    return {
+        "migration": migration_result["action"] if migration_result else "none",
+        "skills": "reinstalled" if skills_result else "none",
+        "skills_installed_targets": [
+            install.get("target")
+            for install in (skills_result or {}).get("installs", [])
+            if isinstance(install, dict)
+        ],
+        "current_cli_version": final_plan["installed_cli_version"],
+        "current_skill_bundle_version": final_plan["installed_skill_bundle_version"],
+        "current_db_schema_version": final_plan["current_db_schema_version"],
+    }
 
 
 @app.command("migrate")
@@ -1203,6 +1297,7 @@ def init(
 def init_db() -> None:
     """Create the database schema, optionally resetting an existing database."""
     settings = get_settings()
+    _ensure_schema_ready(settings)
     database_path = settings.sqlite_database_path
     if database_path is None:
         console.print(

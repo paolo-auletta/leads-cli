@@ -6,7 +6,7 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from company_discovery import cli
+from company_discovery import __version__, cli
 from company_discovery.cli import LLM_PROVIDER_CHOICES, app
 from company_discovery import runtime
 from company_discovery import settings as settings_module
@@ -375,14 +375,68 @@ def test_update_guides_user_to_preflight(tmp_path, monkeypatch) -> None:
 
 
 def test_update_check_reports_machine_readable_plan(tmp_path, monkeypatch) -> None:
-    result = invoke_with_home(monkeypatch, tmp_path / "leads", ["update", "--check", "--json"])
+    result = invoke_with_home(
+        monkeypatch,
+        tmp_path / "leads",
+        ["update", "--check", "--no-remote", "--json"],
+    )
 
     assert result.exit_code == 0
     assert '"product": "leads"' in result.output
-    assert '"latest_cli_version": "0.1.1"' in result.output
-    assert '"target_skill_bundle_version": "2026.06.2"' in result.output
+    assert f'"latest_cli_version": "{__version__}"' in result.output
+    assert f'"target_skill_bundle_version": "{runtime.SKILL_BUNDLE_VERSION}"' in result.output
     assert '"migration_required": false' in result.output
     assert '"risk_summary"' in result.output
+
+
+def test_data_commands_are_blocked_when_workspace_schema_requires_migration(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "leads"
+    invoke_with_home(monkeypatch, home, ["doctor"])
+    runtime_path = home / "config" / "runtime.json"
+    runtime_payload = json.loads(runtime_path.read_text())
+    runtime_payload["schema_version"] = 0
+    runtime_path.write_text(json.dumps(runtime_payload))
+
+    blocked = invoke_with_home(monkeypatch, home, ["companies", "show-run", "company-discover-test"])
+    update_check = invoke_with_home(
+        monkeypatch,
+        home,
+        ["update", "--check", "--no-remote", "--json"],
+    )
+
+    assert blocked.exit_code == 2
+    assert "Workspace migration required" in blocked.output
+    assert "leads migrate --check" in blocked.output
+    assert update_check.exit_code == 0
+    assert '"migration_required": true' in update_check.output
+
+
+def test_update_apply_reinstalls_stale_skill_bundle(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "leads"
+    codex_skills = tmp_path / "codex-skills"
+    monkeypatch.setenv("LEADS_CODEX_SKILLS_DIR", str(codex_skills))
+    install_result = invoke_with_home(monkeypatch, home, ["skills", "install", "--target", "codex"])
+    assert install_result.exit_code == 0
+    runtime_path = home / "config" / "runtime.json"
+    runtime_payload = json.loads(runtime_path.read_text())
+    runtime_payload["skill_bundle_version"] = "old"
+    runtime_path.write_text(json.dumps(runtime_payload))
+
+    result = invoke_with_home(
+        monkeypatch,
+        home,
+        ["update", "--apply", "--no-remote", "--yes", "--json"],
+    )
+
+    assert result.exit_code == 0
+    assert '"skills": "reinstalled"' in result.output
+    assert f'"current_skill_bundle_version": "{runtime.SKILL_BUNDLE_VERSION}"' in result.output
 
 
 def test_migrate_check_reports_current_database_status(tmp_path, monkeypatch) -> None:
