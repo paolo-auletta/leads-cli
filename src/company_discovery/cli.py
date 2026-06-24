@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from functools import lru_cache
 from importlib import metadata
 from datetime import datetime, timezone
 from pathlib import Path
@@ -125,34 +126,138 @@ ONBOARDING_STYLE = Style(
 )
 
 
+MODEL_PICKER_LIMIT = 12
+LITELLM_PROVIDER_MODEL_LISTS = {
+    "openai": ("open_ai_chat_completion_models", "openai"),
+    "deepseek": ("deepseek_models", "deepseek"),
+    "anthropic": ("anthropic_models", "anthropic"),
+    "google-gemini": ("gemini_models", "gemini"),
+}
+PREFERRED_PROVIDER_MODELS = {
+    "openai": ["gpt-5-mini", "gpt-5", "gpt-4.1-mini"],
+    "deepseek": ["deepseek-chat", "deepseek-reasoner"],
+    "anthropic": ["claude-sonnet-4-6", "claude-opus-4-6", "claude-haiku-4-5"],
+    "google-gemini": [
+        "gemini-3.1-pro-preview",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-2.5-flash",
+    ],
+}
+NON_CHAT_MODEL_MARKERS = (
+    "audio",
+    "dall-e",
+    "embedding",
+    "image",
+    "imagen",
+    "moderation",
+    "realtime",
+    "robotics",
+    "sora",
+    "transcribe",
+    "tts",
+    "veo",
+    "whisper",
+)
+NON_CHAT_MODEL_NAMES = {"container"}
+
+
+@lru_cache(maxsize=None)
+def _litellm_provider_models(provider: str) -> tuple[str, ...]:
+    normalized_provider = provider.strip().lower()
+    model_source = LITELLM_PROVIDER_MODEL_LISTS.get(normalized_provider)
+    if not model_source:
+        return ()
+    attr_name, provider_prefix = model_source
+    os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+    try:
+        import litellm
+    except Exception:
+        return ()
+
+    raw_models = getattr(litellm, attr_name, ())
+    models = []
+    seen = set()
+    for raw_model in sorted(str(model) for model in raw_models):
+        model = _strip_provider_model_prefix(raw_model, provider_prefix)
+        if not _looks_like_chat_model(model):
+            continue
+        if model not in seen:
+            seen.add(model)
+            models.append(model)
+    preferred = [
+        model
+        for model in PREFERRED_PROVIDER_MODELS.get(normalized_provider, [])
+        if model in seen
+    ]
+    remaining = [model for model in models if model not in set(preferred)]
+    return tuple([*preferred, *remaining])
+
+
+def _litellm_picker_models(provider: str) -> list[str]:
+    return list(_litellm_provider_models(provider)[:MODEL_PICKER_LIMIT])
+
+
+def _strip_provider_model_prefix(model: str, provider_prefix: str) -> str:
+    prefix = f"{provider_prefix}/"
+    if model.startswith(prefix):
+        return model.removeprefix(prefix)
+    return model
+
+
+def _looks_like_chat_model(model: str) -> bool:
+    lower_model = model.lower()
+    if lower_model in NON_CHAT_MODEL_NAMES:
+        return False
+    return not any(marker in lower_model for marker in NON_CHAT_MODEL_MARKERS)
+
+
+def _known_provider_model_error(provider: str, model: str) -> str | None:
+    provider_choice = _provider_choice(provider)
+    if not provider_choice or provider_choice["key"] == "custom":
+        return None
+    provider_key = str(provider_choice["key"])
+    known_models = set(_litellm_provider_models(provider_key))
+    if not known_models:
+        return None
+    _, provider_prefix = LITELLM_PROVIDER_MODEL_LISTS[provider_key]
+    normalized_model = _strip_provider_model_prefix(model.strip(), provider_prefix)
+    if normalized_model in known_models:
+        return None
+    examples = ", ".join(list(_litellm_provider_models(provider_key))[:3])
+    return (
+        f"'{model}' is not in LiteLLM's known {provider_choice['label']} model registry. "
+        f"Try one of: {examples}, or choose Custom OpenAI-compatible endpoint for external routers."
+    )
+
+
 LLM_PROVIDER_CHOICES = [
     {
         "key": "openai",
         "label": "OpenAI",
         "base_url": "https://api.openai.com/v1",
         "supported": True,
-        "models": ["gpt-5-mini", "gpt-5", "gpt-4.1-mini"],
+        "models": _litellm_picker_models("openai"),
     },
     {
         "key": "deepseek",
         "label": "DeepSeek",
         "base_url": "https://api.deepseek.com/v1",
         "supported": True,
-        "models": ["deepseek-chat", "deepseek-reasoner"],
+        "models": _litellm_picker_models("deepseek"),
     },
     {
         "key": "anthropic",
         "label": "Anthropic Claude",
         "base_url": "https://api.anthropic.com/v1",
         "supported": True,
-        "models": ["claude-sonnet-4-6", "claude-opus-4-8", "claude-haiku-4-5"],
+        "models": _litellm_picker_models("anthropic"),
     },
     {
         "key": "google-gemini",
         "label": "Google Gemini",
         "base_url": "https://generativelanguage.googleapis.com/v1beta",
         "supported": True,
-        "models": ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.1-pro-preview"],
+        "models": _litellm_picker_models("google-gemini"),
     },
     {
         "key": "custom",
@@ -613,7 +718,12 @@ def _select_model(provider: str, current_model: str) -> str:
     default = current_model if any(choice["key"] == current_model for choice in model_choices) else CUSTOM_MODEL_VALUE
     selected = _select_choice("Default model", model_choices, default=default)
     if selected == CUSTOM_MODEL_VALUE:
-        return _prompt_required("Model name", default=current_model if current_model else None)
+        while True:
+            model = _prompt_required("Model name", default=current_model if current_model else None)
+            error = _known_provider_model_error(provider, model)
+            if not error:
+                return model
+            console.print(f"[yellow]{error}[/yellow]")
     return selected
 
 
@@ -685,6 +795,45 @@ def _prompt_secret(label: str, *, existing: bool, required: bool = False) -> str
             break
         console.print(f"[yellow]{label} is required.[/yellow]")
     return value or None
+
+
+def _configure_llm_interactive(root: Path) -> dict[str, str | bool]:
+    paths = ensure_workspace(root)
+    existing_config = read_toml(paths.config_file)
+    existing_secrets = read_toml(paths.secrets_file)
+    console.print("\n[bold bright_cyan]Model provider[/bold bright_cyan]")
+    current_provider = str(_nested_value(existing_config, "llm.provider", "openai"))
+    selected_provider = _select_choice(
+        "LLM provider",
+        LLM_PROVIDER_CHOICES,
+        default=current_provider if _provider_choice(current_provider) else "openai",
+    )
+    selected_base_url = _provider_base_url(
+        selected_provider,
+        str(_nested_value(existing_config, "llm.base_url", "")) or None,
+    )
+    if selected_provider == "custom":
+        selected_base_url = _prompt_required("LLM base URL", default=selected_base_url)
+    current_model = str(_nested_value(existing_config, "llm.model", ""))
+    selected_model = _select_model(selected_provider, current_model)
+    selected_llm_key = _prompt_secret(
+        "LLM API key",
+        existing=bool(_nested_value(existing_secrets, "llm.api_key", "")),
+        required=True,
+    )
+
+    update_config_value(root, "llm.provider", selected_provider, secret=False)
+    update_config_value(root, "llm.base_url", selected_base_url, secret=False)
+    update_config_value(root, "llm.model", selected_model, secret=False)
+    if selected_llm_key:
+        update_config_value(root, "llm.api_key", selected_llm_key, secret=True)
+    get_settings.cache_clear()
+    return {
+        "provider": selected_provider,
+        "base_url": selected_base_url,
+        "model": selected_model,
+        "api_key_updated": bool(selected_llm_key),
+    }
 
 
 def _parse_target_selection(raw: str, detected: list[str]) -> list[str]:
@@ -1023,6 +1172,21 @@ def config_set_secret(
     target = update_config_value(settings.company_discovery_home, key, secret_value, secret=True)
     get_settings.cache_clear()
     console.print(f"Updated secret [bold]{key}[/bold] in [bold]{target}[/bold].")
+
+
+@config_app.command("llm")
+def config_llm() -> None:
+    """Interactively update the LLM provider, model, base URL, and API key."""
+    settings = get_settings()
+    result = _configure_llm_interactive(settings.company_discovery_home)
+    table = Table(title="LLM configuration updated", show_header=True, header_style="bold")
+    table.add_column("Setting")
+    table.add_column("Value")
+    table.add_row("Provider", str(result["provider"]))
+    table.add_row("Model", str(result["model"]))
+    table.add_row("Base URL", str(result["base_url"]))
+    table.add_row("API key", "updated" if result["api_key_updated"] else "kept existing")
+    console.print(table)
 
 
 @skills_app.command("list-targets")

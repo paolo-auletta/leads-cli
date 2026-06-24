@@ -77,6 +77,11 @@ class Settings(BaseSettings):
     def resolved_llm_response_format(self) -> Literal["json_schema", "json_object"]:
         if self.llm_response_format != "auto":
             return self.llm_response_format
+        provider = self.llm_provider.strip().lower()
+        if provider in {"openai", "anthropic", "google-gemini", "gemini"}:
+            return "json_schema"
+        if provider in {"deepseek", "custom", "openai-compatible"}:
+            return "json_object"
         hostname = (urlparse(self.llm_base_url).hostname or "").lower()
         return "json_schema" if hostname in {"api.openai.com", "openai.com"} else "json_object"
 

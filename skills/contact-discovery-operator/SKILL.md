@@ -25,12 +25,16 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
   `runs/<company-discover-id>/enrich/<company-enrich-id>/`.
 - Config is in `config/config.toml`; secrets are in `config/secrets.toml`; never expose secret
   values.
+- Contact discovery uses the configured LLM provider to evaluate current-company and role evidence.
+  If discovery fails with a provider/model/key error, use `leads config llm` to update the LLM
+  provider, model, base URL, and API key instead of editing config files by hand.
 - The memory database is `data/company_memory.db`; use `leads contacts show-run` and inspect
   commands before direct DB inspection.
 - Backups are under `backups/`; CLI diagnostics are in `logs/leads.log`; installed skill metadata
   is under `skills/`.
 - Useful setup/maintenance commands: `leads init`, `leads version`, `leads doctor`,
-  `leads update --check`, `leads migrate --check`, and `leads skills status`.
+  `leads config show`, `leads config llm`, `leads update --check`, `leads migrate --check`,
+  and `leads skills status`.
 
 ## New Discovery
 

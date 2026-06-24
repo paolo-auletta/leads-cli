@@ -26,8 +26,9 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
   instead of manually editing installed skill files.
 
 Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads config show`,
-`leads skills status`, `leads skills install`, `leads skills reinstall`, `leads update --check`,
-`leads update --apply`, `leads migrate --check`, and `leads migrate --apply`.
+`leads config llm`, `leads config set`, `leads config set-secret`, `leads skills status`,
+`leads skills install`, `leads skills reinstall`, `leads update --check`, `leads update --apply`,
+`leads migrate --check`, and `leads migrate --apply`.
 
 ## What This Command Can And Cannot Do
 
@@ -40,6 +41,8 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
   supported migrations, and required backups.
 - This separation is intentional: package managers handle executable code; Leads handles local
   workspace safety.
+- `leads config llm` is not an update command. Use it when the user wants to change the LLM
+  provider, model, base URL, or API key after onboarding.
 
 ## Safe Update Flow
 

@@ -44,8 +44,9 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 - `logs/leads.log` stores CLI diagnostics; it is not run evidence and should not be summarized as
   a lead result.
 - Useful setup/maintenance commands: `leads init`, `leads version`, `leads doctor`,
-  `leads update --check`, `leads update --apply`, `leads migrate --check`,
-  `leads migrate --apply`, and `leads skills status`.
+  `leads config show`, `leads config llm`, `leads update --check`,
+  `leads update --apply`, `leads migrate --check`, `leads migrate --apply`, and
+  `leads skills status`.
 
 ## Fresh Install Check
 
@@ -58,6 +59,29 @@ When the user seems newly installed or asks what to do next:
 4. If required API keys are missing, explain the impact simply: no LLM key means agents cannot
    generate/evaluate searches; no Exa key means live company/contact discovery cannot search the
    web; no Apollo key means contact email/phone enrichment cannot run.
+
+## LLM Provider Configuration
+
+Explain model setup as a normal part of the Leads workspace, not as something the user must edit by
+hand.
+
+- Use `leads config llm` when the user wants to change the LLM provider, model, base URL, or LLM
+  API key after onboarding. It is interactive only and is safer than manually editing TOML.
+- Supported built-in providers are OpenAI, DeepSeek, Anthropic Claude, and Google Gemini. There is
+  also a Custom OpenAI-compatible endpoint option for routers or local/proxy providers.
+- The built-in provider model lists come from LiteLLM's bundled registry, not from a static Leads
+  list. The picker shows a compact set of known chat models, with Leads' preferred supported
+  defaults first.
+- When a user types a custom model for a known provider, Leads checks it against LiteLLM's known
+  model registry before saving it. This catches typos and unsupported names early.
+- Registry validation is not the same as account validation. A model can be known to LiteLLM but
+  still fail later if the user's API key, account, region, billing, or provider permissions do not
+  allow access.
+- For Custom OpenAI-compatible endpoints, Leads does not validate the model name against LiteLLM's
+  built-in provider registry, because private routers often expose custom names.
+- `leads config show` displays non-secret settings with secrets masked. Never print raw API keys.
+- `leads config set <key> <value>` and `leads config set-secret <key>` are lower-level commands for
+  targeted edits; prefer `leads config llm` for LLM provider/model/key changes.
 
 ## Plain-Language Overview
 
@@ -151,6 +175,8 @@ Do not overwhelm the user with every command. Mention the important ones and off
 - `leads init`: set up the workspace, API keys, and agent skills.
 - `leads doctor`: check configuration and workspace health.
 - `leads version`: show CLI, skill bundle, schema, and workspace.
+- `leads config show`: show current non-secret configuration with secret values masked.
+- `leads config llm`: interactively change the LLM provider, model, base URL, and API key.
 - `leads companies validate-spec --spec <path>`: check a company spec.
 - `leads companies discover --spec <path>`: run company discovery.
 - `leads companies enrich <company-discover-id>`: enrich discovered companies.

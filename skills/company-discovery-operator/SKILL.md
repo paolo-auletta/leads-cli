@@ -22,12 +22,18 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
   sheet is empty.
 - Config lives in `config/config.toml`; secrets live in `config/secrets.toml`; never expose secret
   values.
+- Company discovery uses the configured LLM provider for query planning and ICP evaluation. If
+  `leads doctor` reports a missing LLM key, or discovery fails with a provider/model/key error,
+  use `leads config llm` to interactively update provider, model, base URL, and API key. The model
+  picker is backed by LiteLLM's known provider registry; custom OpenAI-compatible endpoints can use
+  private model names.
 - The memory database is `data/company_memory.db`; treat CLI output and saved artifacts as the
   normal interface.
 - Backups are under `backups/`; CLI diagnostics are in `logs/leads.log`; installed skill metadata
   is under `skills/`.
 - Useful setup/maintenance commands: `leads init`, `leads version`, `leads doctor`,
-  `leads update --check`, `leads migrate --check`, and `leads skills status`.
+  `leads config show`, `leads config llm`, `leads update --check`, `leads migrate --check`,
+  and `leads skills status`.
 
 ## New discovery
 

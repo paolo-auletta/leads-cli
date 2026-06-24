@@ -31,7 +31,7 @@ def test_windows_installer_bootstraps_pipx_and_runs_onboarding() -> None:
 def test_readme_leads_with_public_install_paths() -> None:
     content = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "curl -fsSL https://raw.githubusercontent.com/paoloauletta/leads/main/install.sh | bash" in content
-    assert "irm https://raw.githubusercontent.com/paoloauletta/leads/main/install.ps1 | iex" in content
+    assert "curl -fsSL https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.sh | bash" in content
+    assert "irm https://raw.githubusercontent.com/paolo-auletta/leads-cli/main/install.ps1 | iex" in content
     assert "pipx install leads-cli" in content
     assert "leads init" in content

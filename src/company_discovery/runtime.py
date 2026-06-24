@@ -16,7 +16,7 @@ from platformdirs import user_data_dir
 PRODUCT_NAME = "leads"
 DISPLAY_NAME = "Leads"
 SCHEMA_VERSION = 1
-SKILL_BUNDLE_VERSION = "2026.06.5"
+SKILL_BUNDLE_VERSION = "2026.06.6"
 LOGGER_NAME = "company_discovery"
 WORKSPACE_POINTER_FILE = "workspace.json"
 

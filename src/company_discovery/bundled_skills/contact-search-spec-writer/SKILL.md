@@ -25,7 +25,8 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 - Backups are under `backups/`; CLI diagnostics are in `logs/leads.log`; installed skill metadata
   is under `skills/`.
 - Useful setup/maintenance commands: `leads init`, `leads version`, `leads doctor`,
-  `leads update --check`, `leads migrate --check`, and `leads skills status`.
+  `leads config show`, `leads config llm`, `leads update --check`, `leads migrate --check`,
+  and `leads skills status`.
 
 ## Workflow
 

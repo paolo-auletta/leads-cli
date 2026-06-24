@@ -26,10 +26,14 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
   `show-enrichment`, and inspect commands before direct DB inspection.
 - Config is in `config/config.toml`; secrets are in `config/secrets.toml`; never expose secret
   values.
+- Company enrichment uses the configured LLM provider to extract structured facts from official
+  pages. If enrichment fails with a provider/model/key error, use `leads config llm` to update the
+  LLM provider, model, base URL, and API key instead of editing config files by hand.
 - Backups are under `backups/`; CLI diagnostics are in `logs/leads.log`; installed skill metadata
   is under `skills/`; specs live under `specs/companies/` and `specs/contacts/`.
 - Useful setup/maintenance commands: `leads init`, `leads version`, `leads doctor`,
-  `leads update --check`, `leads migrate --check`, and `leads skills status`.
+  `leads config show`, `leads config llm`, `leads update --check`, `leads migrate --check`,
+  and `leads skills status`.
 
 ## Standard workflow
 

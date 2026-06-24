@@ -299,10 +299,16 @@ def test_init_provider_choices_match_supported_llm_adapter_surface() -> None:
     assert providers["anthropic"]["supported"] is True
     assert providers["google-gemini"]["supported"] is True
     assert providers["custom"]["supported"] is True
+    assert providers["openai"]["models"] == cli._litellm_picker_models("openai")
+    assert providers["deepseek"]["models"] == cli._litellm_picker_models("deepseek")
+    assert providers["anthropic"]["models"] == cli._litellm_picker_models("anthropic")
+    assert providers["google-gemini"]["models"] == cli._litellm_picker_models("google-gemini")
     assert "gpt-5-mini" in providers["openai"]["models"]
     assert "deepseek-chat" in providers["deepseek"]["models"]
     assert "claude-sonnet-4-6" in providers["anthropic"]["models"]
-    assert "gemini-3.5-flash" in providers["google-gemini"]["models"]
+    assert "claude-opus-4-8" not in providers["anthropic"]["models"]
+    assert "gemini-3.1-pro-preview" in providers["google-gemini"]["models"]
+    assert "gemini-3.5-flash" not in providers["google-gemini"]["models"]
 
 
 def test_provider_base_urls_match_native_supported_apis() -> None:
@@ -364,6 +370,47 @@ def test_masked_secret_prompt_uses_questionary_password(monkeypatch) -> None:
     assert captured["args"] == ("LLM API key",)
     assert captured["style"] is cli.ONBOARDING_STYLE
     assert callable(captured["validate"])
+
+
+def test_known_provider_custom_model_is_validated(monkeypatch) -> None:
+    prompts = iter(["not-a-real-openai-model", "gpt-5-mini"])
+
+    monkeypatch.setattr(cli, "_select_choice", lambda *args, **kwargs: cli.CUSTOM_MODEL_VALUE)
+    monkeypatch.setattr(cli, "_prompt_required", lambda *args, **kwargs: next(prompts))
+
+    assert cli._select_model("openai", "") == "gpt-5-mini"
+
+
+def test_custom_provider_model_is_not_litellm_validated() -> None:
+    assert cli._known_provider_model_error("custom", "my-private-model") is None
+
+
+def test_config_llm_interactive_updates_provider_model_and_secret(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "leads"
+
+    def fake_select_choice(message, choices, *, default=None):
+        if message == "LLM provider":
+            return "anthropic"
+        if message == "Default model":
+            return "claude-sonnet-4-6"
+        raise AssertionError(f"unexpected prompt: {message}")
+
+    monkeypatch.setattr(cli, "_select_choice", fake_select_choice)
+    monkeypatch.setattr(cli, "_prompt_secret", lambda *args, **kwargs: "sk-ant-test")
+
+    result = invoke_with_home(monkeypatch, home, ["config", "llm"])
+
+    assert result.exit_code == 0
+    assert "LLM configuration updated" in result.output
+    config = runtime.read_toml(home / "config" / "config.toml")
+    secrets = runtime.read_toml(home / "config" / "secrets.toml")
+    assert config["llm"]["provider"] == "anthropic"
+    assert config["llm"]["base_url"] == "https://api.anthropic.com/v1"
+    assert config["llm"]["model"] == "claude-sonnet-4-6"
+    assert secrets["llm"]["api_key"] == "sk-ant-test"
 
 
 def test_update_guides_user_to_preflight(tmp_path, monkeypatch) -> None:
