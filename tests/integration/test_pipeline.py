@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import json
 
+from openpyxl import load_workbook
 from pydantic import BaseModel
 
 from company_discovery.db.repository import DiscoveryRepository
@@ -111,6 +112,17 @@ def test_external_run_persists_exports_then_next_run_uses_memory_only(
     assert first.summary.rejected == 1
     for path in first.artifact_paths.values():
         assert Path(path).exists()
+    workbook = load_workbook(first.artifact_paths["workbook"])
+    assert workbook.sheetnames == ["Companies", "Contacts"]
+    companies = workbook["Companies"]
+    contacts = workbook["Contacts"]
+    assert companies["A1"].value == "company_name"
+    assert companies["A2"].value == "Acme Builders"
+    assert companies["C2"].value == "selected"
+    assert companies["D2"].value == "selected"
+    assert companies["C4"].value == "reserve"
+    assert contacts["A1"].value == "company_name"
+    assert contacts["A2"].value is None
     exported_payload = json.loads(Path(first.artifact_paths["json"]).read_text())
     assert exported_payload["status"] == "completed"
     assert exported_payload["artifacts"]["json"] == first.artifact_paths["json"]

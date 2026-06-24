@@ -20,6 +20,9 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 - Contact enrichment artifacts live under
   `runs/<company-discover-id>/enrich/<company-enrich-id>/contacts/<contact-discover-id>/enrich/<contact-enrich-id>/`
   with `ready.csv`, `review.csv`, `blocked.csv`, `summary.md`, and `run.json`.
+- The root workbook `runs/<company-discover-id>/leads.xlsx` is updated after contact enrichment so
+  its `Contacts` sheet includes Apollo email/phone fields plus ready/review/blocked status while
+  preserving review contacts that were not sent to Apollo.
 - Config is in `config/config.toml`; secrets are in `config/secrets.toml`; never expose API keys or
   webhook values.
 - The memory database is `data/company_memory.db`; use `leads contacts show-run`,
@@ -42,7 +45,7 @@ If no webhook endpoint is available, run email-only enrichment with `--no-phone`
 
 1. Identify the completed `contact-discover-<id>` requested by the user.
 2. Run `leads contacts show-run <contact-run-id>` to confirm scope and accepted count.
-3. Run `leads contacts enrich <contact-run-id>` for email and phone.
+3. Run `leads contacts enrich <contact-run-id>` for email and phone. Before launching Apollo enrichment, set the tool-call timeout to the largest value the agent runtime allows. If a numeric timeout is required, use at least 30 minutes for small batches, 60 minutes for about 50-150 contacts, and 120 minutes for larger batches or async phone enrichment. If the runtime maximum is too low, suggest splitting the run.
 4. Use `--no-phone` only when the user wants email-only enrichment or no webhook is configured.
 5. Use `--refresh` only when the user explicitly wants to ignore fresh 14-day Apollo memory.
 6. Report the contact enrichment run ID and ready/review/blocked counts.

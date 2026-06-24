@@ -35,7 +35,10 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
   values.
 - `data/company_memory.db` is the local memory database.
 - `specs/companies/` and `specs/contacts/` are where agent-created search specs belong.
-- `runs/` stores saved discovery and enrichment results.
+- `runs/` stores saved discovery and enrichment results. Each company discovery run also has a
+  consolidated workbook at `runs/<company-discover-id>/leads.xlsx` with `Companies` and `Contacts`
+  sheets that update as enrichment/contact steps complete. It keeps selected and reserve companies,
+  plus accepted and review contacts.
 - `skills/` stores bundled agent skills and install metadata.
 - `backups/` stores migration and reset backups.
 - `logs/leads.log` stores CLI diagnostics; it is not run evidence and should not be summarized as

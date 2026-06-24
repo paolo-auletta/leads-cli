@@ -4,6 +4,8 @@ import csv
 import json
 from pathlib import Path
 
+from openpyxl import load_workbook
+
 from company_discovery.db.enrichment_repository import EnrichmentRepository
 from company_discovery.db.repository import DiscoveryRepository
 from company_discovery.domain.models import (
@@ -207,6 +209,14 @@ def test_enrichment_inherits_discovery_resolves_state_and_reuses_memory(
     assert rows[0]["phone"] == "(210) 555-1234"
     assert rows[0]["vertical"] == "construction"
     assert rows[0]["ownership_type"] == "privately_held"
+    workbook = load_workbook(first.artifact_paths["workbook"])
+    companies = workbook["Companies"]
+    assert companies["A2"].value == "Acme Builders"
+    assert companies["C2"].value == "selected"
+    assert companies["D2"].value == "enriched_ready"
+    assert companies["E2"].value == "https://www.linkedin.com/company/acme-builders"
+    assert companies["F2"].value == "(210) 555-1234"
+    assert workbook["Contacts"]["A2"].value is None
     payload = json.loads(Path(first.artifact_paths["json"]).read_text())
     assert payload["items"][0]["trace"][0]["stage"] == "inherited"
     stored = enrichment_repository.get_run(first.run_id)

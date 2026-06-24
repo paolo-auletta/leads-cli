@@ -59,8 +59,10 @@ Core commands to know: `leads init`, `leads version`, `leads doctor`, `leads con
 9. Ask the user before applying structural database changes.
 10. After the CLI package is current, use `leads update --apply` to apply local migrations and
    reinstall previously installed skill bundles. Use `--yes` only after explicit approval.
-11. Use a large tool-window timeout, around 10 minutes, so package upgrades, backups, migrations,
-   and skill reinstalls can finish.
+11. Use the largest available tool-call timeout for package upgrades, backups, migrations, and
+   skill reinstalls. If the runtime requires a number, use at least 10 minutes for checks or skill
+   reinstall, 30 minutes when backups are involved, and 60 minutes or more for database
+   migrations.
 12. Do not assume a migration is harmless just because the command exists.
 
 ## Interpretation

@@ -7,6 +7,7 @@ from typing import Any
 
 from company_discovery.domain.models import RunSummary
 from company_discovery.domain.spec import CompanySearchSpec
+from company_discovery.reports.workbook import update_company_discovery_workbook
 
 
 class ArtifactExporter:
@@ -33,6 +34,7 @@ class ArtifactExporter:
         json_path = Path(paths["json"])
         full_payload = dict(run_payload)
         full_payload["summary"] = summary.model_dump(mode="json")
+        paths["workbook"] = update_company_discovery_workbook(self._artifacts_root, full_payload)
         full_payload["artifacts"] = paths
         json_path.write_text(json.dumps(full_payload, indent=2, ensure_ascii=True), encoding="utf-8")
         return paths

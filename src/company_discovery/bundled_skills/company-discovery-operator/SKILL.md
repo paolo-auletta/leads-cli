@@ -16,7 +16,10 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 
 - Company specs normally live in `specs/companies/`; validate the exact spec path before running.
 - Company discovery artifacts are saved under `runs/<company-discover-id>/` with `selected.csv`,
-  `reserve.csv`, `rejected.csv`, `summary.md`, and `run.json`.
+  `reserve.csv`, `rejected.csv`, `summary.md`, `run.json`, and `leads.xlsx`.
+- `leads.xlsx` is the consolidated client-facing workbook in the discovery run root. After
+  discovery, its `Companies` sheet contains selected and reserve companies and its `Contacts`
+  sheet is empty.
 - Config lives in `config/config.toml`; secrets live in `config/secrets.toml`; never expose secret
   values.
 - The memory database is `data/company_memory.db`; treat CLI output and saved artifacts as the
@@ -37,7 +40,7 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 5. For multi-vertical specs, report the balance mode and treat each vertical as an independent memory and external-search lane.
 6. Report the external search budget before running. If omitted, use the normalized defaults:
    `external_search.exa_searches = 8` and `external_search.results_per_search = 5`.
-7. Run `leads companies discover --spec <path>`. Add `--verbose` only when detailed queries and candidate decisions help diagnose the run. Before launching the command, set a large tool-window timeout, around 10 minutes, so live discovery can finish without being cut off.
+7. Run `leads companies discover --spec <path>`. Add `--verbose` only when detailed queries and candidate decisions help diagnose the run. Before launching live discovery, set the tool-call timeout to the largest value the agent runtime allows. If a numeric timeout is required, use at least 10 minutes for small tests, 30 minutes up to about 50 target companies, 60 minutes for about 50-150 target companies, and 120 minutes for larger or broad runs. Never use the default timeout for live discovery.
 8. Let the command finish. Do not launch a duplicate while the original process is active.
 9. Read the final counts and Markdown summary path.
 10. Summarize memory reuse, known-domain suppression for `only_new`, external-search volume,

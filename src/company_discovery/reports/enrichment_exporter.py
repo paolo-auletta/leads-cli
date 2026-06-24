@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from company_discovery.domain.models import EnrichmentSummary
+from company_discovery.reports.workbook import update_company_enrichment_workbook
 
 
 class EnrichmentArtifactExporter:
@@ -55,6 +56,9 @@ class EnrichmentArtifactExporter:
         Path(paths["summary"]).write_text(self._markdown(payload, summary), encoding="utf-8")
         full_payload = dict(payload)
         full_payload["summary"] = summary.model_dump(mode="json")
+        workbook_path = update_company_enrichment_workbook(self._artifacts_root, full_payload)
+        if workbook_path is not None:
+            paths["workbook"] = workbook_path
         full_payload["artifacts"] = paths
         Path(paths["json"]).write_text(
             json.dumps(full_payload, indent=2, ensure_ascii=True), encoding="utf-8"

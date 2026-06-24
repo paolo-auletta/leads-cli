@@ -18,6 +18,9 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 - Contact discovery artifacts live at
   `runs/<company-discover-id>/enrich/<company-enrich-id>/contacts/<contact-discover-id>/`
   with `accepted.csv`, `review.csv`, `rejected.csv`, `summary.md`, and `run.json`.
+- The root workbook `runs/<company-discover-id>/leads.xlsx` is updated after contact discovery so
+  its `Contacts` sheet contains accepted and review contacts with blank email and phone columns
+  until contact enrichment runs.
 - The source company enrichment run lives under
   `runs/<company-discover-id>/enrich/<company-enrich-id>/`.
 - Config is in `config/config.toml`; secrets are in `config/secrets.toml`; never expose secret
@@ -34,7 +37,7 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 1. Locate the requested `contact_search_spec.json`.
 2. Run `leads contacts validate-spec --spec <path>`.
 3. Confirm the source company enrichment run, bucket, optional domain subset, roles, and caps.
-4. Run `leads contacts discover --spec <path>`.
+4. Run `leads contacts discover --spec <path>`. Before launching live contact discovery, set the tool-call timeout to the largest value the agent runtime allows. If a numeric timeout is required, use at least 10 minutes for small tests, 30 minutes up to about 50 target contacts/companies, 60 minutes for about 50-150, and 120 minutes for larger or broad runs. Never use the default timeout for live discovery.
 5. Let the command finish; do not launch a duplicate while it is active.
 6. Report the contact run ID, companies loaded, memory reuse, live-web queries, and
    accepted/review/rejected counts.

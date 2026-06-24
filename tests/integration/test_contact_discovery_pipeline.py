@@ -4,6 +4,8 @@ import csv
 import json
 from pathlib import Path
 
+from openpyxl import load_workbook
+
 from company_discovery.db.contact_repository import ContactDiscoveryRepository
 from company_discovery.db.contact_enrichment_repository import ContactEnrichmentRepository
 from company_discovery.db.enrichment_repository import EnrichmentRepository
@@ -273,6 +275,14 @@ def test_contact_discovery_searches_exports_trace_and_reuses_memory(
         "status": "accepted",
         "notes": "project_manager: Current company and requested role are explicit.",
     }
+    workbook = load_workbook(first.artifact_paths["workbook"])
+    contacts = workbook["Contacts"]
+    assert contacts["A2"].value == "Acme Builders"
+    assert contacts["C2"].value == "Jane Smith"
+    assert contacts["F2"].value is None
+    assert contacts["G2"].value is None
+    assert contacts["H2"].value == "accepted"
+    assert contacts["I2"].value == "accepted"
     payload = json.loads(Path(first.artifact_paths["json"]).read_text())
     assert payload["source_discovery_run_id"] == accepted_path.parent.parent.parent.parent.parent.name
     assert len(payload["queries"]) == 2
@@ -371,6 +381,13 @@ def test_contact_enrichment_uses_accepted_people_exports_under_contact_run_and_r
             "notes": "",
         }
     ]
+    workbook = load_workbook(first.artifact_paths["workbook"])
+    contacts = workbook["Contacts"]
+    assert contacts["C2"].value == "Jane Smith"
+    assert contacts["F2"].value == "jane@acme.com"
+    assert contacts["G2"].value == "+15125550100"
+    assert contacts["H2"].value == "accepted"
+    assert contacts["I2"].value == "ready"
     run_payload = json.loads(Path(first.artifact_paths["json"]).read_text())
     assert run_payload["items"][0]["trace"][0]["provider_record"] == {
         "provider": "fake-apollo"

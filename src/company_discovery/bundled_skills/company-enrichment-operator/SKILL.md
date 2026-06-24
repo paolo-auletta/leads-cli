@@ -19,6 +19,9 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
 - Company enrichment artifacts live at
   `runs/<company-discover-id>/enrich/<company-enrich-id>/` with `enriched.csv`, `review.csv`,
   `blocked.csv`, `summary.md`, and `run.json`.
+- The root workbook `runs/<company-discover-id>/leads.xlsx` is updated after company
+  enrichment so the `Companies` sheet includes enriched fields, outcomes, conflicts, and review
+  flags while preserving non-enriched selected/reserve rows already in the workbook.
 - The database is `data/company_memory.db`; use `leads companies show-run`,
   `show-enrichment`, and inspect commands before direct DB inspection.
 - Config is in `config/config.toml`; secrets are in `config/secrets.toml`; never expose secret
@@ -36,12 +39,13 @@ Use `leads doctor` or `leads version` to confirm the workspace root. The root co
    from discovery. Enrichment targets LinkedIn company profile, phone, complete address, and
    independence.
 4. Run `leads companies enrich <discovery-run-id>`.
-5. Read the final counts and artifact path. Report inherited facts, memory reuse, website retrieval,
+5. Before launching live enrichment, set the tool-call timeout to the largest value the agent runtime allows. If a numeric timeout is required, use at least 30 minutes for small enrichment batches, 60 minutes for about 50-150 companies, and 120 minutes for larger batches. If the runtime maximum is too low for the requested batch, suggest splitting the run with limits or smaller scopes.
+6. Read the final counts and artifact path. Report inherited facts, memory reuse, website retrieval,
    fallback searches, and ready/review/blocked totals.
    The returned enrichment run ID is random and prefixed, like `company-enrich-a1b2c3d4e5f6`.
-6. Treat `enriched.csv` as the clean deliverable, `review.csv` as unresolved work, `blocked.csv` as
+7. Treat `enriched.csv` as the clean deliverable, `review.csv` as unresolved work, `blocked.csv` as
    conflicts, and `run.json` as the provenance and decision trace.
-7. Present the results with:
+8. Present the results with:
    - one compact count line for all outcomes;
    - one table for `ready`;
    - one table for `review`.
