@@ -4,6 +4,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import httpx
 from typer.testing import CliRunner
 
 from company_discovery import __version__, cli
@@ -148,6 +149,61 @@ def test_config_set_and_show_masks_secrets(tmp_path, monkeypatch) -> None:
     assert "apollo-test" not in shown.output
     assert "https://example.test/hook" not in shown.output
     assert "********" in shown.output
+
+
+def test_create_webhook_site_url_posts_token_endpoint() -> None:
+    captured: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["method"] = request.method
+        captured["path"] = request.url.path
+        return httpx.Response(200, json={"uuid": "token-123"})
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(handler),
+        base_url="https://webhook.site",
+    )
+
+    token_id, webhook_url = cli._create_webhook_site_url(
+        "https://webhook.site",
+        client=client,
+    )
+
+    assert captured == {"method": "POST", "path": "/token"}
+    assert token_id == "token-123"
+    assert webhook_url == "https://webhook.site/token-123"
+
+
+def test_config_rotate_apollo_webhook_updates_url_without_printing_it(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    home = tmp_path / "leads"
+    calls: dict[str, str] = {}
+
+    def fake_create_webhook_site_url(base_url: str):
+        calls["base_url"] = base_url
+        return "token-123", "https://webhook.site/token-123"
+
+    monkeypatch.setattr(cli, "_create_webhook_site_url", fake_create_webhook_site_url)
+
+    result = invoke_with_home(
+        monkeypatch,
+        home,
+        [
+            "config",
+            "rotate-apollo-webhook",
+            "--base-url",
+            "https://webhook.site",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert calls["base_url"] == "https://webhook.site"
+    assert "token-123" in result.output
+    assert "https://webhook.site/token-123" not in result.output
+    config = runtime.read_toml(home / "config" / "config.toml")
+    assert config["providers"]["apollo"]["webhook_url"] == "https://webhook.site/token-123"
 
 
 def test_skills_install_records_metadata_and_copies_bundle(tmp_path, monkeypatch) -> None:

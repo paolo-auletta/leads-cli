@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Annotated
 
 import questionary
+import httpx
 import typer
 from pydantic import ValidationError
 from questionary import Choice, Style
@@ -110,6 +111,7 @@ app.add_typer(contacts, name="contacts")
 app.add_typer(config_app, name="config")
 app.add_typer(skills_app, name="skills")
 console = Console()
+WEBHOOK_SITE_BASE_URL = "https://webhook.site"
 
 ONBOARDING_STYLE = Style(
     [
@@ -603,6 +605,32 @@ def _nested_value(data: dict[str, object], dotted_key: str, default: object = No
             return default
         cursor = cursor[key]
     return cursor
+
+
+def _create_webhook_site_url(
+    base_url: str = WEBHOOK_SITE_BASE_URL,
+    *,
+    client: httpx.Client | None = None,
+) -> tuple[str | None, str]:
+    normalized_base = base_url.rstrip("/")
+    owns_client = client is None
+    http_client = client or httpx.Client(base_url=normalized_base, timeout=30)
+    try:
+        response = http_client.post("/token")
+        response.raise_for_status()
+        payload = response.json()
+    finally:
+        if owns_client:
+            http_client.close()
+    if not isinstance(payload, dict):
+        raise RuntimeError("Webhook.site returned an unexpected token response")
+    token_id = payload.get("uuid") or payload.get("id") or payload.get("token")
+    url = payload.get("url") or payload.get("webhook_url")
+    if not url and token_id:
+        url = f"{normalized_base}/{token_id}"
+    if not url:
+        raise RuntimeError("Webhook.site token response did not include a usable URL")
+    return str(token_id) if token_id else None, str(url)
 
 
 def _provider_base_url(provider: str, current: str | None = None) -> str:
@@ -1186,6 +1214,54 @@ def config_set_secret(
     target = update_config_value(settings.company_discovery_home, key, secret_value, secret=True)
     get_settings.cache_clear()
     console.print(f"Updated secret [bold]{key}[/bold] in [bold]{target}[/bold].")
+
+
+@config_app.command("rotate-apollo-webhook")
+def config_rotate_apollo_webhook(
+    base_url: Annotated[
+        str,
+        typer.Option("--base-url", help="Webhook.site base URL to create tokens against."),
+    ] = WEBHOOK_SITE_BASE_URL,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Print machine-readable JSON."),
+    ] = False,
+) -> None:
+    """Create a fresh Webhook.site URL and configure it for Apollo phone enrichment."""
+    settings = get_settings()
+    try:
+        token_id, webhook_url = _create_webhook_site_url(base_url)
+    except httpx.HTTPStatusError as exc:
+        detail = "Webhook.site token creation failed"
+        if exc.response.status_code == 429:
+            detail = "Webhook.site token creation is rate limited; reuse the current URL or retry later"
+        console.print(f"[bold red]{detail}[/bold red]")
+        raise typer.Exit(1) from exc
+    except (httpx.HTTPError, RuntimeError, ValueError) as exc:
+        console.print(f"[bold red]Webhook.site token creation failed:[/bold red] {exc}")
+        raise typer.Exit(1) from exc
+
+    target = update_config_value(
+        settings.company_discovery_home,
+        "providers.apollo.webhook_url",
+        webhook_url,
+        secret=False,
+    )
+    get_settings.cache_clear()
+    payload = {
+        "provider": "webhook.site",
+        "token_id": token_id,
+        "webhook_url": "********",
+        "target": str(target),
+    }
+    if json_output:
+        console.print_json(data=payload)
+        return
+    token_label = token_id or "created"
+    console.print(
+        f"Created Webhook.site token [bold]{token_label}[/bold] and updated "
+        "[bold]providers.apollo.webhook_url[/bold]."
+    )
 
 
 @config_app.command("llm")
