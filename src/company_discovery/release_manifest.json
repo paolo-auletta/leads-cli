@@ -1,5 +1,5 @@
 {
-  "cli_version": "0.2.1",
+  "cli_version": "0.2.2",
   "skill_bundle_version": "2026.06.6",
   "schema_version": 1,
   "requires_migration": false,
