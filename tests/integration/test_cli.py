@@ -125,13 +125,28 @@ def test_config_set_and_show_masks_secrets(tmp_path, monkeypatch) -> None:
         home,
         ["config", "set-secret", "llm.api_key", "--value", "sk-test"],
     )
+    set_apollo_secret = invoke_with_home(
+        monkeypatch,
+        home,
+        ["config", "set-secret", "providers.apollo.api_key", "--value", "apollo-test"],
+    )
+    set_webhook = invoke_with_home(
+        monkeypatch,
+        home,
+        ["config", "set", "providers.apollo.webhook_url", "https://example.test/hook"],
+    )
     shown = invoke_with_home(monkeypatch, home, ["config", "show"])
 
     assert set_model.exit_code == 0
     assert set_secret.exit_code == 0
+    assert set_apollo_secret.exit_code == 0
+    assert set_webhook.exit_code == 0
     assert shown.exit_code == 0
     assert '"model": "gpt-5"' in shown.output
+    assert '"apollo": {' in shown.output
     assert "sk-test" not in shown.output
+    assert "apollo-test" not in shown.output
+    assert "https://example.test/hook" not in shown.output
     assert "********" in shown.output
 
 

@@ -34,6 +34,7 @@ class ApolloClient:
             timeout=settings.apollo_timeout_seconds,
         )
         self._pending_people: dict[str, list[ApolloPersonRequest]] = {}
+        self._pending_matches: dict[str, list[ApolloPersonMatch]] = {}
 
     def enrich_people(
         self,
@@ -54,6 +55,8 @@ class ApolloClient:
 
         payload: dict[str, Any] = {
             "details": [self._person_payload(person) for person in people],
+        }
+        params: dict[str, Any] = {
             "reveal_personal_emails": False,
             "reveal_phone_number": reveal_phone,
             # Standard work email is synchronous. Waterfall email becomes useful only when
@@ -62,22 +65,36 @@ class ApolloClient:
             "run_waterfall_phone": reveal_phone,
         }
         if self._settings.apollo_webhook_url:
-            payload["webhook_url"] = self._settings.apollo_webhook_url
-        response = self._request("POST", "/api/v1/people/bulk_match", json=payload)
+            params["webhook_url"] = self._settings.apollo_webhook_url
+        response = self._request(
+            "POST", "/api/v1/people/bulk_match", json=payload, params=params
+        )
         data = response.json()
         result = self._parse(data, people)
         if result.request_id:
             self._pending_people[result.request_id] = people
+            self._pending_matches[result.request_id] = result.matches
         return result
 
     def poll(self, request_id: str) -> ApolloBatchResult:
-        response = self._request("GET", f"/api/v1/webhook_result/{request_id}")
+        try:
+            response = self._request("GET", f"/api/v1/webhook_result/{request_id}")
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code == 404:
+                return ApolloBatchResult(
+                    matches=self._pending_matches.get(request_id, []),
+                    request_id=request_id,
+                    pending=True,
+                )
+            raise
         data = response.json()
         result = self._parse(data, self._pending_people.get(request_id, []))
+        result = self._merge_pending_result(request_id, result)
         if not result.request_id:
             result = result.model_copy(update={"request_id": request_id})
         if not result.pending:
             self._pending_people.pop(request_id, None)
+            self._pending_matches.pop(request_id, None)
         return result
 
     def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
@@ -110,10 +127,27 @@ class ApolloClient:
     def _parse(
         cls, payload: dict[str, Any], requested: list[ApolloPersonRequest]
     ) -> ApolloBatchResult:
-        request_id = cls._request_id(payload)
-        status = str(payload.get("status") or payload.get("state") or "").lower()
+        source = cls._result_source(payload)
+        request_id = cls._request_id(payload) or cls._request_id(source)
+        status = str(
+            payload.get("status")
+            or payload.get("state")
+            or source.get("status")
+            or source.get("state")
+            or ""
+        ).lower()
         pending = status in {"pending", "processing", "queued", "running"}
-        source = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+        waterfall = source.get("waterfall") if isinstance(source.get("waterfall"), dict) else {}
+        waterfall_status = str(waterfall.get("status") or "").lower()
+        if request_id and waterfall_status in {
+            "accepted",
+            "partial_accepted",
+            "pending",
+            "processing",
+            "queued",
+            "running",
+        }:
+            pending = True
         records = source.get("matches") or source.get("people") or source.get("results") or []
         if isinstance(records, dict):
             records = records.get("matches") or records.get("people") or records.get("results") or []
@@ -129,6 +163,7 @@ class ApolloClient:
             found = bool(person) and not bool(raw.get("error"))
             organization = person.get("organization") if isinstance(person.get("organization"), dict) else {}
             phones = cls._phones(person)
+            email, email_status = cls._email(person)
             raw_domain = (
                 organization.get("primary_domain")
                 or organization.get("website_url")
@@ -143,14 +178,67 @@ class ApolloClient:
                     title=person.get("title"),
                     organization_name=organization.get("name") or person.get("organization_name"),
                     organization_domain=canonical_domain(str(raw_domain)) if raw_domain else None,
-                    email=person.get("email"),
-                    email_status=person.get("email_status"),
+                    email=email,
+                    email_status=email_status,
                     phones=phones,
                     apollo_person_id=person.get("id"),
                     raw=raw,
                 )
             )
         return ApolloBatchResult(matches=matches, request_id=request_id, pending=pending)
+
+    @staticmethod
+    def _result_source(payload: dict[str, Any]) -> dict[str, Any]:
+        source = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+        if isinstance(source.get("webhook_result"), dict):
+            return source["webhook_result"]
+        return source
+
+    def _merge_pending_result(
+        self, request_id: str, result: ApolloBatchResult
+    ) -> ApolloBatchResult:
+        initial = self._by_candidate_id(self._pending_matches.get(request_id, []))
+        if not initial:
+            return result
+        merged = [
+            self._merge_match(initial.get(match.candidate_id), match)
+            for match in result.matches
+        ]
+        returned_ids = {match.candidate_id for match in merged}
+        merged.extend(
+            match for candidate_id, match in initial.items() if candidate_id not in returned_ids
+        )
+        return result.model_copy(update={"matches": merged})
+
+    @staticmethod
+    def _by_candidate_id(matches: list[ApolloPersonMatch]) -> dict[int, ApolloPersonMatch]:
+        return {match.candidate_id: match for match in matches}
+
+    @staticmethod
+    def _merge_match(
+        initial: ApolloPersonMatch | None, latest: ApolloPersonMatch
+    ) -> ApolloPersonMatch:
+        if initial is None:
+            return latest
+        phones = list(dict.fromkeys([*initial.phones, *latest.phones]))
+        raw: dict[str, Any] = {"initial": initial.raw}
+        if latest.raw:
+            raw["async"] = latest.raw
+        return initial.model_copy(
+            update={
+                "person_found": initial.person_found or latest.person_found,
+                "full_name": latest.full_name or initial.full_name,
+                "linkedin_url": latest.linkedin_url or initial.linkedin_url,
+                "title": latest.title or initial.title,
+                "organization_name": latest.organization_name or initial.organization_name,
+                "organization_domain": latest.organization_domain or initial.organization_domain,
+                "email": latest.email or initial.email,
+                "email_status": latest.email_status or initial.email_status,
+                "phones": phones,
+                "apollo_person_id": latest.apollo_person_id or initial.apollo_person_id,
+                "raw": raw,
+            }
+        )
 
     @staticmethod
     def _request_id(payload: dict[str, Any]) -> str | None:
@@ -171,6 +259,22 @@ class ApolloClient:
         return name or None
 
     @staticmethod
+    def _email(person: dict[str, Any]) -> tuple[str | None, str | None]:
+        email = person.get("email")
+        status = person.get("email_status") or person.get("email_status_cd")
+        if isinstance(email, str) and email and not email.startswith("email_not_unlocked@"):
+            return email, str(status) if status else None
+        for item in person.get("emails") or []:
+            if not isinstance(item, dict):
+                continue
+            candidate = item.get("email")
+            if not candidate or str(candidate).startswith("email_not_unlocked@"):
+                continue
+            item_status = item.get("email_status") or item.get("email_status_cd") or item.get("status")
+            return str(candidate), str(item_status) if item_status else None
+        return None, str(status) if status else None
+
+    @staticmethod
     def _phones(person: dict[str, Any]) -> list[str]:
         values: list[str] = []
         for phone in person.get("phone_numbers") or []:
@@ -179,7 +283,7 @@ class ApolloClient:
             value = phone.get("sanitized_number") or phone.get("raw_number") or phone.get("number")
             if value and value not in values:
                 values.append(str(value))
-        direct = person.get("phone") or person.get("mobile_phone")
+        direct = person.get("phone") or person.get("mobile_phone") or person.get("sanitized_phone")
         if direct and str(direct) not in values:
             values.append(str(direct))
         return values

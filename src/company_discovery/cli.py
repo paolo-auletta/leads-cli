@@ -579,13 +579,20 @@ def _installed_cli_version() -> str:
 
 def _mask_secrets(data: dict[str, object]) -> dict[str, object]:
     masked = json.loads(json.dumps(data))
-    if isinstance(masked.get("llm"), dict) and masked["llm"].get("api_key"):
-        masked["llm"]["api_key"] = "********"
-    providers = masked.get("providers")
-    if isinstance(providers, dict):
-        for provider in providers.values():
-            if isinstance(provider, dict) and provider.get("api_key"):
-                provider["api_key"] = "********"
+    sensitive_keys = {"api_key", "webhook_url"}
+
+    def mask(value: object) -> None:
+        if not isinstance(value, dict):
+            return
+        for key, child in value.items():
+            if key in sensitive_keys and child:
+                value[key] = "********"
+            elif key == "apollo" and child and not isinstance(child, dict):
+                value[key] = "********"
+            else:
+                mask(child)
+
+    mask(masked)
     return masked
 
 
